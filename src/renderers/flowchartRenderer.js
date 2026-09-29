@@ -212,15 +212,11 @@ class FlowchartRenderer {
     }
 
     renderReturn(stmt) {
-        const text = stmt.text || 'return';
-        const lines = SVG.splitText(text, 34);
-        const maxLen = Math.max(...lines.map(l => l.length));
-        const w = Math.max(110, maxLen * 8.5 + 26);
-        const h = Math.max(38, lines.length * 19 + 14);
-        const cy = this.currentY + h / 2;
+        const dim = this.calcActionDimensions(stmt, false);
+        const cy = this.currentY + dim.h / 2;
 
-        this.addRectangle(this.centerX, cy, w, h, lines);
-        this.currentY += h;
+        this.renderActionShape(this.centerX, cy, dim, 'return');
+        this.currentY += dim.h;
 
         const nextY = this.currentY + this.options.nodeGap;
         this.addLine(this.centerX, this.currentY, this.centerX, nextY, this.shouldDrawArrow('down'));
@@ -240,10 +236,10 @@ class FlowchartRenderer {
             target = target.replace(/^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/, '').trim();
             return {
                 target: target,
-                prefix: frac.prefix || '',
+                prefix: toMathExpression(frac.prefix || ''),
                 numText: toMathExpression(frac.numerator),
                 denText: toMathExpression(frac.denominator),
-                suffix: frac.suffix || ''
+                suffix: toMathExpression(frac.suffix || '')
             };
         }
         return null;
@@ -251,7 +247,7 @@ class FlowchartRenderer {
 
     calcActionDimensions(actOrText, isIO = false, maxChars = 34) {
         if (typeof actOrText === 'object' && actOrText !== null) {
-            if (this.options.expressionMode === 'math' && actOrText.type === 'process') {
+            if (this.options.expressionMode === 'math' && (actOrText.type === 'process' || actOrText.type === 'return')) {
                 const frac = this.checkFraction(actOrText);
                 if (frac) {
                     const charW = 8.2;
@@ -607,41 +603,53 @@ class FlowchartRenderer {
         }
 
         // Generalized N > 2 cascade
+        const condDims = chain.conditions.map(c => this.calcRhombusDimensions(c.condition));
+        const maxCondW = Math.max(120, ...condDims.map(d => d.w));
+
+        const allThenDims = chain.conditions.flatMap(c => (c.thenBranch || []).map(act => this.calcActionDimensions(act)));
+        const maxThenW = Math.max(136, ...allThenDims.map(d => d.w));
+
+        const rightColX = this.centerX + Math.max(160, maxCondW / 2 + maxThenW / 2 + 35);
+        const busRightX = rightColX + maxThenW / 2 + 25;
+
         const branchBottoms = [];
         let curX = this.centerX;
         let curY = this.currentY;
 
         for (let i = 0; i < numConds; i++) {
             const condItem = chain.conditions[i];
-            const condH = 48;
-            const condW = Math.max(120, condItem.condition.length * 8.5 + 32);
+            const { lines, w: condW, h: condH } = condDims[i];
             const condCenterY = curY + condH / 2;
 
-            this.addRhombus(curX, condCenterY, condW, condH, condItem.condition);
+            this.addRhombus(curX, condCenterY, condW, condH, lines);
 
-            const rightX = this.centerX + 160 + i * 25;
+            // '+' branch: goes right to rightColX
             this.addLabel(curX + condW / 2 + 16, condCenterY - 11, plusLabel, { size: 14 });
 
-            const actTopY = condCenterY + 28;
+            const actTopY = Math.max(condCenterY + 28, condCenterY + condH / 2 + 10);
             this.addPolyline([
                 [curX + condW / 2, condCenterY],
-                [rightX, condCenterY],
-                [rightX, actTopY]
+                [rightColX, condCenterY],
+                [rightColX, actTopY]
             ], this.shouldDrawArrow('down'));
 
             let actBottomY = actTopY;
             for (const act of condItem.thenBranch) {
                 const dim = this.calcActionDimensions(act);
-                this.renderActionShape(rightX, actBottomY + dim.h / 2, dim, act.type);
+                this.renderActionShape(rightColX, actBottomY + dim.h / 2, dim, act.type);
                 actBottomY += dim.h;
             }
-            branchBottoms.push({ x: rightX, y: actBottomY });
+            branchBottoms.push({ x: rightColX, y: actBottomY });
 
+            // Connect action bottom to busRightX
+            this.addLine(rightColX, actBottomY, busRightX, actBottomY);
+
+            // '-' branch: goes left
             this.addLabel(curX - condW / 2 - 16, condCenterY - 11, minusLabel, { size: 14 });
 
             if (i < numConds - 1) {
-                const nextX = curX - 85;
-                const nextY = condCenterY + 50;
+                const nextX = curX - Math.max(85, condW / 2 + 25);
+                const nextY = Math.max(condCenterY + 60, actBottomY + 20);
 
                 this.addPolyline([
                     [curX - condW / 2, condCenterY],
@@ -652,8 +660,8 @@ class FlowchartRenderer {
                 curX = nextX;
                 curY = nextY;
             } else {
-                const elseX = curX - 95;
-                const elseTopY = condCenterY + 28;
+                const elseX = curX - Math.max(95, condW / 2 + 35);
+                const elseTopY = Math.max(condCenterY + 28, condCenterY + condH / 2 + 10);
                 this.addPolyline([
                     [curX - condW / 2, condCenterY],
                     [elseX, condCenterY],
@@ -668,18 +676,22 @@ class FlowchartRenderer {
                         elseBottomY += dim.h;
                     }
                 }
-                branchBottoms.push({ x: elseX, y: elseBottomY });
+                branchBottoms.push({ x: elseX, y: elseBottomY, isElse: true });
             }
         }
 
         const maxY = Math.max(...branchBottoms.map(b => b.y)) + 24;
 
-        for (const b of branchBottoms) {
-            this.addPolyline([
-                [b.x, b.y],
-                [b.x, maxY],
-                [this.centerX, maxY]
-            ], false);
+        // Down from busRightX to maxY
+        const minThenY = Math.min(...branchBottoms.filter(b => !b.isElse).map(b => b.y));
+        this.addLine(busRightX, minThenY, busRightX, maxY);
+        this.addLine(busRightX, maxY, this.centerX, maxY);
+
+        // Else branch drops down to maxY and connects to centerX
+        const elseBranch = branchBottoms.find(b => b.isElse);
+        if (elseBranch) {
+            this.addLine(elseBranch.x, elseBranch.y, elseBranch.x, maxY);
+            this.addLine(elseBranch.x, maxY, this.centerX, maxY);
         }
 
         const nextY = maxY + this.options.nodeGap;
@@ -700,35 +712,32 @@ class FlowchartRenderer {
 
         // Down (+): loop body
         this.addLabel(condX + 18, condY + condH / 2 + 14, plusLabel, { size: 14 });
-        let bodyY = condY + condH / 2 + 22;
+        const bodyStartY = condY + condH / 2 + this.options.nodeGap;
+        this.addLine(condX, condY + condH / 2, condX, bodyStartY, this.shouldDrawArrow('down'));
+        this.currentY = bodyStartY;
 
-        const bodyDims = (stmt.body || []).map(act => this.calcActionDimensions(act));
-        let maxBodyW = Math.max(110, ...bodyDims.map(d => d.w));
-
-        for (let i = 0; i < (stmt.body || []).length; i++) {
-            const act = stmt.body[i];
-            const dim = bodyDims[i];
-            this.renderActionShape(condX, bodyY + dim.h / 2, dim, act.type);
-            bodyY += dim.h + 16;
+        for (const bodyStmt of (stmt.body || [])) {
+            this.renderStatement(bodyStmt);
         }
 
-        // Loop back line (left -> up past cond -> top of cond)
-        const loopLeftX = condX - Math.max(condW / 2 + 50, maxBodyW / 2 + 50);
-        const loopTopY = condY - condH / 2 - 14;
+        const loopBottomY = this.currentY;
+        const loopLeftX = Math.min(this.bounds.minX, condX - condW / 2) - 35;
+        const loopTopY = condY - condH / 2 - 16;
 
+        // Loop back line (left -> up past cond -> top of cond)
         this.addPolyline([
-            [condX, bodyY - 16],
-            [loopLeftX, bodyY - 16],
+            [condX, loopBottomY],
+            [loopLeftX, loopBottomY],
             [loopLeftX, loopTopY],
             [condX, loopTopY],
             [condX, condY - condH / 2]
-        ], true, 'arrow-flow'); // Arrow pointing down into top vertex
+        ], true, 'arrow-flow');
 
         // Right (-): exit from loop
         this.addLabel(condX + condW / 2 + 16, condY - 11, minusLabel, { size: 14 });
-        const exitRightX = condX + Math.max(condW / 2 + 50, maxBodyW / 2 + 50);
+        const exitRightX = Math.max(this.bounds.maxX, condX + condW / 2) + 35;
+        const exitY = loopBottomY + 24;
 
-        const exitY = bodyY + 16;
         this.addPolyline([
             [condX + condW / 2, condY],
             [exitRightX, condY],
@@ -756,41 +765,36 @@ class FlowchartRenderer {
         const plusLabel = this.options.branchLabels === 'yes_no' ? 'Так' : '+';
         const minusLabel = this.options.branchLabels === 'yes_no' ? 'Ні' : '-';
 
+        // Down (+): loop body
         this.addLabel(condX + 18, condY + condH / 2 + 14, plusLabel, { size: 14 });
-        let bodyY = condY + condH / 2 + 22;
+        const bodyStartY = condY + condH / 2 + this.options.nodeGap;
+        this.addLine(condX, condY + condH / 2, condX, bodyStartY, this.shouldDrawArrow('down'));
+        this.currentY = bodyStartY;
 
-        const bodyDims = (stmt.body || []).map(act => this.calcActionDimensions(act));
-        let maxBodyW = Math.max(110, ...bodyDims.map(d => d.w));
-
-        for (let i = 0; i < (stmt.body || []).length; i++) {
-            const act = stmt.body[i];
-            const dim = bodyDims[i];
-            this.renderActionShape(condX, bodyY + dim.h / 2, dim, act.type);
-            bodyY += dim.h + 16;
+        for (const bodyStmt of (stmt.body || [])) {
+            this.renderStatement(bodyStmt);
         }
 
         if (stmt.step) {
-            const stepDim = this.calcActionDimensions(stmt.step, false);
-            maxBodyW = Math.max(maxBodyW, stepDim.w);
-            this.renderActionShape(condX, bodyY + stepDim.h / 2, stepDim, 'process');
-            bodyY += stepDim.h + 16;
+            this.renderProcess({ text: stmt.step, type: 'process' });
         }
 
-        const loopLeftX = condX - Math.max(condW / 2 + 50, maxBodyW / 2 + 50);
-        const loopTopY = condY - condH / 2 - 14;
+        const loopBottomY = this.currentY;
+        const loopLeftX = Math.min(this.bounds.minX, condX - condW / 2) - 35;
+        const loopTopY = condY - condH / 2 - 16;
 
         this.addPolyline([
-            [condX, bodyY - 16],
-            [loopLeftX, bodyY - 16],
+            [condX, loopBottomY],
+            [loopLeftX, loopBottomY],
             [loopLeftX, loopTopY],
             [condX, loopTopY],
             [condX, condY - condH / 2]
         ], true, 'arrow-flow');
 
         this.addLabel(condX + condW / 2 + 16, condY - 11, minusLabel, { size: 14 });
-        const exitRightX = condX + Math.max(condW / 2 + 50, maxBodyW / 2 + 50);
+        const exitRightX = Math.max(this.bounds.maxX, condX + condW / 2) + 35;
+        const exitY = loopBottomY + 24;
 
-        const exitY = bodyY + 16;
         this.addPolyline([
             [condX + condW / 2, condY],
             [exitRightX, condY],
@@ -806,37 +810,36 @@ class FlowchartRenderer {
     // 6. Do-while loop
     renderDoWhile(stmt) {
         const bodyStartY = this.currentY;
-        let bodyY = bodyStartY;
 
-        let maxBodyW = 110;
-        for (const act of (stmt.body || [])) {
-            const dim = this.calcActionDimensions(act);
-            maxBodyW = Math.max(maxBodyW, dim.w);
-            this.renderActionShape(this.centerX, bodyY + dim.h / 2, dim, act.type);
-            bodyY += dim.h + 16;
+        for (const bodyStmt of (stmt.body || [])) {
+            this.renderStatement(bodyStmt);
         }
 
         const { lines, w: condW, h: condH } = this.calcRhombusDimensions(stmt.condition);
-        const condY = bodyY + condH / 2;
-        this.addRhombus(this.centerX, condY, condW, condH, lines);
+        const condY = this.currentY + condH / 2;
+        const condX = this.centerX;
+
+        this.addRhombus(condX, condY, condW, condH, lines);
 
         const plusLabel = this.options.branchLabels === 'yes_no' ? 'Так' : '+';
         const minusLabel = this.options.branchLabels === 'yes_no' ? 'Ні' : '-';
 
-        this.addLabel(this.centerX + condW / 2 + 16, condY - 11, plusLabel, { size: 14 });
-        const loopRightX = this.centerX + Math.max(condW / 2 + 50, maxBodyW / 2 + 50);
+        // Right (+): loop back to top of body
+        this.addLabel(condX + condW / 2 + 16, condY - 11, plusLabel, { size: 14 });
+        const loopRightX = Math.max(this.bounds.maxX, condX + condW / 2) + 35;
 
         this.addPolyline([
-            [this.centerX + condW / 2, condY],
+            [condX + condW / 2, condY],
             [loopRightX, condY],
             [loopRightX, bodyStartY - 14],
-            [this.centerX, bodyStartY - 14],
-            [this.centerX, bodyStartY]
+            [condX, bodyStartY - 14],
+            [condX, bodyStartY]
         ], true, 'arrow-flow');
 
-        this.addLabel(this.centerX + 18, condY + condH / 2 + 14, minusLabel, { size: 14 });
+        // Down (-): exit
+        this.addLabel(condX + 18, condY + condH / 2 + 14, minusLabel, { size: 14 });
         const nextY = condY + condH / 2 + this.options.nodeGap;
-        this.addLine(this.centerX, condY + condH / 2, this.centerX, nextY, this.shouldDrawArrow('down'));
+        this.addLine(condX, condY + condH / 2, condX, nextY, this.shouldDrawArrow('down'));
         this.currentY = nextY;
     }
 

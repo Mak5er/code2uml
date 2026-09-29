@@ -180,7 +180,8 @@ const SVG = {
         const charW = 8.2;
         const prefix = options.prefix || '';
         const suffix = options.suffix || '';
-        const leftText = target ? `${target} = ${prefix}` : prefix;
+        const sep = target === 'return' ? ' ' : ' = ';
+        const leftText = target ? `${target}${sep}${prefix}` : prefix;
         const leftW = leftText ? leftText.length * charW : 0;
         const rightW = suffix ? suffix.length * charW : 0;
         const numW = numText.length * 8.0;

@@ -141,7 +141,8 @@ export function toMathExpression(str) {
     // 4. Caret powers: x^2 -> x², x^3 -> x³
     s = s.replace(/\b([a-zA-Z_]\w*)\^(\d+|[nkm])\b/g, (_, b, e) => b + toSuperscript(e));
 
-    // 5. Repeated multiplication: x * x * x -> x³, x * x -> x²
+    // 5. Repeated multiplication: (expr) * (expr) -> (expr)², x * x * x -> x³, x * x -> x²
+    s = s.replace(/(\([^()]+?\))\s*\*\s*\1/g, '$1²');
     s = s.replace(/\b([a-zA-Z_]\w*)\s*\*\s*\1\s*\*\s*\1\b/g, '$1³');
     s = s.replace(/\b([a-zA-Z_]\w*)\s*\*\s*\1\b/g, '$1²');
 
@@ -189,14 +190,19 @@ export function parseFraction(expr) {
     if (!expr) return { isFraction: false };
     let s = expr.trim();
 
-    // Check if target = expr is inside
+    // Check if target = expr or return expr is inside
     let target = '';
-    const eqMatch = s.match(/^([a-zA-Z_][a-zA-Z0-9_\s]*)=(.*)$/);
-    if (eqMatch) {
-        let t = eqMatch[1].trim();
-        t = t.replace(/^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/, '').trim();
-        target = t;
-        s = eqMatch[2].trim();
+    if (/^return\s+/i.test(s)) {
+        target = 'return';
+        s = s.replace(/^return\s+/i, '').trim();
+    } else {
+        const eqMatch = s.match(/^([a-zA-Z_][a-zA-Z0-9_\s]*)=(.*)$/);
+        if (eqMatch) {
+            let t = eqMatch[1].trim();
+            t = t.replace(/^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/, '').trim();
+            target = t;
+            s = eqMatch[2].trim();
+        }
     }
 
     let parenDepth = 0;

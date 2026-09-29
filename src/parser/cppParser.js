@@ -505,6 +505,8 @@ class CppParser {
         const meaningfulStrings = [];
         let hasNonString = false;
 
+        let hasTableFormatting = false;
+
         for (const p of parts) {
             if (p.length === 0) continue;
 
@@ -521,6 +523,7 @@ class CppParser {
 
             // Skip parameterized manipulators: setw(5), setprecision(2), etc.
             if (p.length - firstIdx >= 3 && paramManipulators.has(leadVal) && p[firstIdx + 1]?.value === '(') {
+                hasTableFormatting = true;
                 continue;
             }
 
@@ -530,6 +533,7 @@ class CppParser {
                 const inner = strVal.slice(1, -1).trim();
                 // Skip purely decorative table dividers: "----------------", "|", "  |"
                 if (/^[-=*#|+_~]+$/.test(inner) || inner === '') {
+                    hasTableFormatting = true;
                     continue;
                 }
                 meaningfulStrings.push(p[0].value);
@@ -546,6 +550,11 @@ class CppParser {
 
         // If all parts were manipulators or decorative table dividers, omit this statement
         if (meaningfulExprs.length === 0 && meaningfulStrings.length === 0) {
+            return null;
+        }
+
+        // If it had table formatting and zero non-strings, it's a console table header (e.g. cout << "|" << setw(5) << "x" << "|" ...)
+        if (!hasNonString && hasTableFormatting) {
             return null;
         }
 
@@ -965,7 +974,7 @@ class CppParser {
             if (s.type === 'if') {
                 if (s.thenBranch) s.thenBranch = this.cleanStatements(s.thenBranch);
                 if (s.elseBranch) s.elseBranch = this.cleanStatements(s.elseBranch);
-            } else if (s.type === 'while' || s.type === 'do-while' || s.type === 'for') {
+            } else if (s.type === 'while' || s.type === 'do_while' || s.type === 'do-while' || s.type === 'for') {
                 if (s.body) s.body = this.cleanStatements(s.body);
             }
         }
