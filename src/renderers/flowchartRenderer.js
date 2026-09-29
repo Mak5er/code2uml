@@ -78,7 +78,9 @@ class FlowchartRenderer {
         // Process statements
         for (let i = 0; i < this.ast.length; i++) {
             const stmt = this.ast[i];
-            if (stmt.type === 'return') continue;
+            if (stmt.type === 'return' && stmt.isMainZero && i === this.ast.length - 1) {
+                continue;
+            }
             this.renderStatement(stmt);
         }
 
@@ -106,10 +108,13 @@ class FlowchartRenderer {
 
     renderStart() {
         const h = 36;
-        const w = 120;
+        const startText = this.options.startText || (this.ast.functionName && this.ast.functionName !== 'main' ? (this.ast.functionSignature || this.ast.functionName) : 'початок');
+        const lines = SVG.splitText(startText, 30);
+        const maxLen = Math.max(...lines.map(l => l.length));
+        const w = Math.max(120, maxLen * 8.5 + 32);
         const cy = this.currentY + h / 2;
 
-        this.addStadium(this.centerX, cy, w, h, 'початок');
+        this.addStadium(this.centerX, cy, w, h, lines.length === 1 ? lines[0] : lines);
         this.currentY += h;
 
         const nextY = this.currentY + this.options.nodeGap;
@@ -137,6 +142,9 @@ class FlowchartRenderer {
             case 'process':
                 this.renderProcess(stmt);
                 break;
+            case 'return':
+                this.renderReturn(stmt);
+                break;
             case 'if':
                 this.renderIf(stmt);
                 break;
@@ -155,7 +163,10 @@ class FlowchartRenderer {
     }
 
     renderInput(stmt) {
-        const text = stmt.text || 'x';
+        let text = stmt.text || 'x';
+        if (!text.toLowerCase().startsWith('ввід')) {
+            text = `ввід ${text}`;
+        }
         const lines = SVG.splitText(text, 34);
         const maxLen = Math.max(...lines.map(l => l.length));
         const w = Math.max(100, maxLen * 8.5 + 36);
@@ -171,7 +182,10 @@ class FlowchartRenderer {
     }
 
     renderOutput(stmt) {
-        const text = stmt.text || 'y';
+        let text = stmt.text || 'y';
+        if (!text.toLowerCase().startsWith('вивід')) {
+            text = `вивід ${text}`;
+        }
         const lines = SVG.splitText(text, 34);
         const maxLen = Math.max(...lines.map(l => l.length));
         const w = Math.max(90, maxLen * 8.5 + 34);
@@ -183,6 +197,22 @@ class FlowchartRenderer {
         } else {
             this.addDocument(this.centerX, cy, w, h, lines);
         }
+        this.currentY += h;
+
+        const nextY = this.currentY + this.options.nodeGap;
+        this.addLine(this.centerX, this.currentY, this.centerX, nextY, this.shouldDrawArrow('down'));
+        this.currentY = nextY;
+    }
+
+    renderReturn(stmt) {
+        const text = stmt.text || 'return';
+        const lines = SVG.splitText(text, 34);
+        const maxLen = Math.max(...lines.map(l => l.length));
+        const w = Math.max(110, maxLen * 8.5 + 26);
+        const h = Math.max(38, lines.length * 19 + 14);
+        const cy = this.currentY + h / 2;
+
+        this.addRectangle(this.centerX, cy, w, h, lines);
         this.currentY += h;
 
         const nextY = this.currentY + this.options.nodeGap;

@@ -163,8 +163,7 @@ class CppParser {
 
     parse() {
         this.skipUsings();
-        const stmts = this.parseProgram();
-        return this.cleanStatements(stmts);
+        return this.parseProgram();
     }
 
     skipUsings() {
@@ -180,34 +179,18 @@ class CppParser {
         }
     }
 
-    parseProgram() {
-        const statements = [];
-        this.exprMap = new Map(); // expr -> index
-
-        while (this.pos < this.tokens.length) {
-            if (this.isFunctionHeader()) {
-                const funcStmts = this.parseFunction();
-                statements.push(...funcStmts);
-            } else {
-                const stmt = this.parseStatement();
-                if (stmt) {
-                    if (Array.isArray(stmt)) {
-                        statements.push(...stmt);
-                    } else {
-                        statements.push(stmt);
-                    }
-                }
-            }
-        }
-
-        return statements;
-    }
-
     isFunctionHeader() {
         let idx = this.pos;
-        const types = ['int', 'void', 'double', 'float', 'char', 'bool', 'auto', 'long'];
-        if (idx < this.tokens.length && types.includes(this.tokens[idx].value)) {
+        const typeModifiers = ['unsigned', 'signed', 'short', 'long', 'static', 'inline', 'const'];
+        while (idx < this.tokens.length && typeModifiers.includes(this.tokens[idx].value)) {
             idx++;
+        }
+        const types = ['int', 'void', 'double', 'float', 'char', 'bool', 'auto', 'long', 'string', 'size_t'];
+        if (idx < this.tokens.length && (types.includes(this.tokens[idx].value) || this.tokens[idx].type === 'IDENTIFIER')) {
+            idx++;
+            while (idx < this.tokens.length && (this.tokens[idx].value === '*' || this.tokens[idx].value === '&')) {
+                idx++;
+            }
             if (idx < this.tokens.length && this.tokens[idx].type === 'IDENTIFIER') {
                 idx++;
                 if (idx < this.tokens.length && this.tokens[idx].value === '(') {
@@ -218,20 +201,115 @@ class CppParser {
         return false;
     }
 
-    parseFunction() {
-        this.consume(); // type
-        this.consume(); // name
+    parseFunctionDefinitionOrPrototype() {
+        const typeModifiers = ['unsigned', 'signed', 'short', 'long', 'static', 'inline', 'const'];
+        const returnTypeTokens = [];
+        while (this.pos < this.tokens.length && typeModifiers.includes(this.peek()?.value)) {
+            returnTypeTokens.push(this.consume().value);
+        }
+        if (this.pos < this.tokens.length) {
+            returnTypeTokens.push(this.consume().value);
+        }
+        while (this.pos < this.tokens.length && (this.peek()?.value === '*' || this.peek()?.value === '&')) {
+            returnTypeTokens.push(this.consume().value);
+        }
+
+        const nameToken = this.consume();
+        const funcName = nameToken ? nameToken.value : '';
 
         this.expect('SYMBOL', '(');
-        while (this.pos < this.tokens.length && !this.match('SYMBOL', ')')) {
-            this.consume();
+        const paramTokens = [];
+        let parenDepth = 1;
+        while (this.pos < this.tokens.length && parenDepth > 0) {
+            const t = this.consume();
+            if (t.value === '(') parenDepth++;
+            else if (t.value === ')') {
+                parenDepth--;
+                if (parenDepth === 0) break;
+            }
+            paramTokens.push(t);
         }
-        this.expect('SYMBOL', ')');
 
-        if (this.match('SYMBOL', '{')) {
-            return this.parseBlock();
+        // Prototype declaration: ends with ';'
+        if (this.match('SYMBOL', ';')) {
+            this.consume();
+            return { isPrototype: true, name: funcName };
         }
-        return [];
+
+        // Function definition with block body: '{ ... }'
+        if (this.match('SYMBOL', '{')) {
+            const body = this.parseBlock();
+            const cleanedBody = this.cleanStatements(body);
+
+            // Extract parameter names for diagram header (e.g. "f(n)", "Create(a, size, Low, High)")
+            const paramNames = [];
+            for (let i = 0; i < paramTokens.length; i++) {
+                const tok = paramTokens[i];
+                if (tok.type === 'IDENTIFIER') {
+                    const next = paramTokens[i + 1];
+                    if (!next || next.value === ',' || next.value === ')') {
+                        paramNames.push(tok.value);
+                    }
+                }
+            }
+            const sig = paramNames.length > 0 ? `${funcName}(${paramNames.join(', ')})` : `${funcName}()`;
+
+            return {
+                name: funcName,
+                returnType: returnTypeTokens.join(' '),
+                signature: sig,
+                isMain: funcName === 'main',
+                body: cleanedBody
+            };
+        }
+
+        return null;
+    }
+
+    parseProgram() {
+        this.functions = [];
+        const globalStmts = [];
+        this.exprMap = new Map();
+
+        while (this.pos < this.tokens.length) {
+            if (this.isFunctionHeader()) {
+                const func = this.parseFunctionDefinitionOrPrototype();
+                if (func && !func.isPrototype && func.body) {
+                    this.functions.push(func);
+                }
+            } else {
+                const stmt = this.parseStatement();
+                if (stmt) {
+                    if (Array.isArray(stmt)) {
+                        globalStmts.push(...stmt);
+                    } else {
+                        globalStmts.push(stmt);
+                    }
+                }
+            }
+        }
+
+        let activeFunc = null;
+        if (this.functions.length > 0) {
+            if (this.options.targetFunction) {
+                activeFunc = this.functions.find(f => f.name === this.options.targetFunction) || null;
+            }
+            if (!activeFunc) {
+                activeFunc = this.functions.find(f => f.isMain) || this.functions[0];
+            }
+        }
+
+        const resultStmts = activeFunc ? activeFunc.body : this.cleanStatements(globalStmts);
+        resultStmts.functions = this.functions.map(f => ({
+            name: f.name,
+            signature: f.signature,
+            isMain: f.isMain
+        }));
+        resultStmts.functionName = activeFunc ? activeFunc.name : 'main';
+        resultStmts.functionSignature = activeFunc ? activeFunc.signature : 'main()';
+        resultStmts.isMain = activeFunc ? activeFunc.isMain : true;
+
+        return resultStmts;
     }
 
     parseBlock() {
@@ -415,36 +493,67 @@ class CppParser {
         if (curPart.length > 0) parts.push(curPart);
         if (this.match('SYMBOL', ';')) this.consume();
 
-        const meaningfulParts = [];
-        const vars = [];
-        let hasStringOnly = true;
+        const manipulators = new Set([
+            'endl', 'ends', 'flush', 'ws',
+            'fixed', 'scientific', 'hex', 'dec', 'oct',
+            'boolalpha', 'noboolalpha', 'showpoint', 'noshowpoint',
+            'left', 'right', 'internal'
+        ]);
+        const paramManipulators = new Set(['setw', 'setprecision', 'setfill', 'setbase']);
+
+        const meaningfulExprs = [];
+        const meaningfulStrings = [];
+        let hasNonString = false;
 
         for (const p of parts) {
-            const str = p.map(t => t.value).join('');
-            if (str === 'endl' || str === 'std::endl' || str === '"\\n"') {
+            if (p.length === 0) continue;
+
+            let firstIdx = 0;
+            if (p.length >= 3 && p[0].value === 'std' && p[1].value === '::') {
+                firstIdx = 2;
+            }
+            const leadVal = p[firstIdx]?.value;
+
+            // Skip single manipulators: endl, fixed, scientific, etc.
+            if (p.length - firstIdx === 1 && manipulators.has(leadVal)) {
                 continue;
             }
-            if (p.length === 1 && p[0].type === 'IDENTIFIER') {
-                vars.push(p[0].value);
-                meaningfulParts.push(p[0].value);
-                hasStringOnly = false;
-            } else if (p.length === 1 && p[0].type === 'STRING') {
-                meaningfulParts.push(p[0].value);
-            } else {
-                meaningfulParts.push(p.map(t => t.value).join(' '));
-                hasStringOnly = false;
+
+            // Skip parameterized manipulators: setw(5), setprecision(2), etc.
+            if (p.length - firstIdx >= 3 && paramManipulators.has(leadVal) && p[firstIdx + 1]?.value === '(') {
+                continue;
+            }
+
+            // String literals
+            if (p.length === 1 && p[0].type === 'STRING') {
+                const strVal = p[0].value;
+                const inner = strVal.slice(1, -1).trim();
+                // Skip purely decorative table dividers: "----------------", "|", "  |"
+                if (/^[-=*#|+_~]+$/.test(inner) || inner === '') {
+                    continue;
+                }
+                meaningfulStrings.push(p[0].value);
+                continue;
+            }
+
+            // Expressions (variables, math, function calls)
+            const exprText = this.formatExpression(p);
+            if (exprText) {
+                meaningfulExprs.push(exprText);
+                hasNonString = true;
             }
         }
 
-        if (meaningfulParts.length === 0) {
+        // If all parts were manipulators or decorative table dividers, omit this statement
+        if (meaningfulExprs.length === 0 && meaningfulStrings.length === 0) {
             return null;
         }
 
         let simpleText = '';
-        if (vars.length > 0) {
-            simpleText = vars.join(', ');
+        if (hasNonString) {
+            simpleText = meaningfulExprs.join(', ');
         } else {
-            simpleText = meaningfulParts.join(', ');
+            simpleText = meaningfulStrings.join(', ');
         }
 
         return {
@@ -452,8 +561,8 @@ class CppParser {
             raw: `cout << ...;`,
             text: simpleText,
             umlText: `вивід ${simpleText}`,
-            fullText: meaningfulParts.join(' '),
-            isPromptCandidate: hasStringOnly
+            fullText: [...meaningfulStrings, ...meaningfulExprs].join(' '),
+            isPromptCandidate: !hasNonString
         };
     }
 
@@ -731,9 +840,15 @@ class CppParser {
         }
         if (this.match('SYMBOL', ';')) this.consume();
 
+        const formatted = this.formatExpression(retTokens);
+        const isMainZero = formatted === '0' || formatted === '';
+
         return {
             type: 'return',
-            raw: `return ${retTokens.map(t => t.value).join(' ')};`
+            raw: `return ${formatted};`,
+            text: formatted ? `return ${formatted}` : 'return',
+            value: formatted,
+            isMainZero: isMainZero
         };
     }
 
@@ -792,6 +907,7 @@ class CppParser {
         for (let i = 0; i < tokens.length; i++) {
             const t = tokens[i];
             const next = i + 1 < tokens.length ? tokens[i + 1] : null;
+            const prev = i > 0 ? tokens[i - 1] : null;
 
             res += t.value;
 
@@ -800,13 +916,20 @@ class CppParser {
                 if (t.value === '++' || t.value === '--' || next.value === '++' || next.value === '--') {
                     continue;
                 }
-                // No space before opening paren '(' for function calls: atan(1.0), sin(x)
-                if (next.value === '(') {
+                // No space before opening paren '(' only for identifiers: sin(x), atan(1.0), pow(x, 2)
+                if (t.type === 'IDENTIFIER' && next.value === '(') {
                     continue;
                 }
                 // No space after opening paren '(' or before closing paren ')'
                 if (t.value === '(' || next.value === ')') {
                     continue;
+                }
+                // Unary operators (-, +, !)
+                if (['-', '+', '!'].includes(t.value)) {
+                    const isUnary = !prev || ['(', ',', ';', '=', '+=', '-=', '*=', '/=', '&&', '||', '<', '>', '<=', '>=', '==', '!='].includes(prev.value);
+                    if (isUnary) {
+                        continue;
+                    }
                 }
                 // Logical operators
                 if (['&&', '||'].includes(t.value) || ['&&', '||'].includes(next.value)) {

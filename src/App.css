@@ -273,6 +273,43 @@ html.dark .dropdown-menu {
     margin: 0 4px;
 }
 
+/* Function Selector */
+.function-selector-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    height: 34px;
+    box-sizing: border-box;
+}
+
+.func-select-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.func-select {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0 4px;
+}
+
+.func-select option {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+}
+
 .btn-sm {
     padding: 3px 8px;
     font-size: 11.5px;

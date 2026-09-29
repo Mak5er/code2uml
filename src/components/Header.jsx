@@ -7,7 +7,10 @@ export default function Header({
     onExportPng,
     isDark,
     onToggleTheme,
-    activeTab
+    activeTab,
+    functions = [],
+    selectedFunction = 'main',
+    onSelectFunction
 }) {
     const [downloadOpen, setDownloadOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -45,6 +48,24 @@ export default function Header({
                     <Zap size={15} strokeWidth={2.5} />
                     <span>Згенерувати</span>
                 </button>
+
+                {functions && functions.length > 1 && (
+                    <div className="function-selector-wrapper">
+                        <span className="func-select-label">Функція:</span>
+                        <select
+                            className="func-select"
+                            value={selectedFunction}
+                            onChange={(e) => onSelectFunction && onSelectFunction(e.target.value)}
+                            title="Виберіть функцію для побудови діаграми"
+                        >
+                            {functions.map((fn) => (
+                                <option key={fn.name} value={fn.name}>
+                                    {fn.name}() {fn.isMain ? '(головна)' : ''}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 <div className="divider-v" />
 

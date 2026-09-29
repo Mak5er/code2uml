@@ -10,26 +10,31 @@ import { UmlRenderer } from './renderers/umlRenderer';
 import { exportSvg, exportPng } from './utils/exportUtils';
 import './App.css';
 
-function compileCode(sourceCode) {
+function compileCode(sourceCode, targetFunction) {
     const trimmed = (sourceCode || '').trim();
     if (!trimmed) {
         return {
             flowchartSvg: '',
             umlSvg: '',
             status: 'Поле коду порожнє',
-            count: 0
+            count: 0,
+            functions: [],
+            activeFunction: 'main'
         };
     }
-    const ast = parseCppCode(trimmed, { arrowRule: 'all' });
+    const ast = parseCppCode(trimmed, { arrowRule: 'all', targetFunction });
     const fcRenderer = new FlowchartRenderer(ast, { arrowRule: 'all' });
     const fcResult = fcRenderer.render();
     const umlRenderer = new UmlRenderer(ast);
     const umlResult = umlRenderer.render();
+    const funcLabel = ast.functions && ast.functions.length > 1 ? ` (функція ${ast.functionName})` : '';
     return {
         flowchartSvg: fcResult.svg,
         umlSvg: umlResult.svg,
-        status: `✓ Готово: розібрано ${ast.length} операторів`,
-        count: ast.length
+        status: `✓ Готово: розібрано ${ast.length} операторів${funcLabel}`,
+        count: ast.length,
+        functions: ast.functions || [],
+        activeFunction: ast.functionName || 'main'
     };
 }
 
@@ -41,7 +46,7 @@ export default function App() {
         try {
             return compileCode(DEFAULT_CODE);
         } catch {
-            return { flowchartSvg: '', umlSvg: '', status: 'Готово до аналізу', count: 0 };
+            return { flowchartSvg: '', umlSvg: '', status: 'Готово до аналізу', count: 0, functions: [], activeFunction: 'main' };
         }
     });
 
@@ -50,6 +55,8 @@ export default function App() {
     const [umlSvg, setUmlSvg] = useState(initialState.umlSvg);
     const [activeTab, setActiveTab] = useState('side-by-side');
     const [toast, setToast] = useState({ message: '', isVisible: false });
+    const [functions, setFunctions] = useState(initialState.functions || []);
+    const [selectedFunction, setSelectedFunction] = useState(initialState.activeFunction || 'main');
 
     // Theme state (checks localStorage and system preference)
     const [isDark, setIsDark] = useState(() => {
@@ -94,21 +101,27 @@ export default function App() {
     };
 
     // Diagram compilation
-    const generateDiagrams = useCallback((sourceCode, silent = false) => {
+    const generateDiagrams = useCallback((sourceCode, targetFunc = null, silent = false) => {
         const trimmed = (sourceCode || '').trim();
         if (!trimmed) {
             setFlowchartSvg('');
             setUmlSvg('');
             setStatus('Поле коду порожнє');
+            setFunctions([]);
             if (!silent) showToast('Введіть або вставте C++ код');
             return;
         }
 
         try {
-            const res = compileCode(trimmed);
+            const funcToUse = targetFunc || selectedFunction;
+            const res = compileCode(trimmed, funcToUse);
             setFlowchartSvg(res.flowchartSvg);
             setUmlSvg(res.umlSvg);
             setStatus(res.status);
+            setFunctions(res.functions);
+            if (res.activeFunction) {
+                setSelectedFunction(res.activeFunction);
+            }
             if (!silent) {
                 showToast('✓ Діаграми успішно згенеровано!');
             }
@@ -119,14 +132,19 @@ export default function App() {
                 showToast(`Помилка: ${err.message}`);
             }
         }
-    }, [showToast]);
+    }, [selectedFunction, showToast]);
+
+    const handleSelectFunction = (funcName) => {
+        setSelectedFunction(funcName);
+        generateDiagrams(code, funcName, false);
+    };
 
     // Debounced compilation when typing
     const handleCodeChange = (newCode) => {
         setCode(newCode);
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = setTimeout(() => {
-            generateDiagrams(newCode, true);
+            generateDiagrams(newCode, null, true);
         }, 350);
     };
 
@@ -134,6 +152,7 @@ export default function App() {
         setCode('');
         setFlowchartSvg('');
         setUmlSvg('');
+        setFunctions([]);
         setStatus('Поле коду очищено');
         showToast('Поле коду очищено');
     };
@@ -230,12 +249,15 @@ export default function App() {
     return (
         <div className="app-root">
             <Header
-                onGenerate={() => generateDiagrams(code, false)}
+                onGenerate={() => generateDiagrams(code, null, false)}
                 onExportSvg={handleExportSvg}
                 onExportPng={handleExportPng}
                 isDark={isDark}
                 onToggleTheme={toggleTheme}
                 activeTab={activeTab}
+                functions={functions}
+                selectedFunction={selectedFunction}
+                onSelectFunction={handleSelectFunction}
             />
 
             <main className="app-container">

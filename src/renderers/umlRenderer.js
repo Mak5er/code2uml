@@ -72,7 +72,9 @@ class UmlRenderer {
         // Process statements
         for (let i = 0; i < this.ast.length; i++) {
             const stmt = this.ast[i];
-            if (stmt.type === 'return') continue;
+            if (stmt.type === 'return' && stmt.isMainZero && i === this.ast.length - 1) {
+                continue;
+            }
             this.renderStatement(stmt);
         }
 
@@ -99,10 +101,18 @@ class UmlRenderer {
     }
 
     renderInitialNode() {
-        const r = 11;
-        const cy = this.currentY + r;
-        this.addInitialNode(this.centerX, cy, r);
-        this.currentY += r * 2;
+        if (this.ast.functionName && this.ast.functionName !== 'main') {
+            const signature = this.ast.functionSignature || this.ast.functionName;
+            const { lines, w, h } = this.calcActionDimensions(signature, false);
+            const cy = this.currentY + h / 2;
+            this.addAction(this.centerX, cy, w, h, lines);
+            this.currentY += h;
+        } else {
+            const r = 11;
+            const cy = this.currentY + r;
+            this.addInitialNode(this.centerX, cy, r);
+            this.currentY += r * 2;
+        }
 
         const nextY = this.currentY + this.options.nodeGap;
         this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
@@ -127,6 +137,9 @@ class UmlRenderer {
             case 'process':
                 this.renderProcess(stmt);
                 break;
+            case 'return':
+                this.renderReturn(stmt);
+                break;
             case 'if':
                 this.renderIf(stmt);
                 break;
@@ -142,6 +155,19 @@ class UmlRenderer {
             default:
                 break;
         }
+    }
+
+    renderReturn(stmt) {
+        const text = stmt.text || 'return';
+        const { lines, w, h } = this.calcActionDimensions(text, false);
+        const cy = this.currentY + h / 2;
+
+        this.addAction(this.centerX, cy, w, h, lines);
+        this.currentY += h;
+
+        const nextY = this.currentY + this.options.nodeGap;
+        this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
+        this.currentY = nextY;
     }
 
     calcActionDimensions(text, isIO = false, maxChars = 32) {
