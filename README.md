@@ -64,3 +64,13 @@ src/
 ├── App.jsx                 # Головний компонент
 └── main.jsx                # Вхідна точка React 19
 ```
+
+## ☕ Підтримка проекту
+
+Якщо проект допоміг вам швидко здати лабораторну роботу або зекономив купу годин на кресленні схем — ви можете підтримати розробника донатом:
+
+[![Monobank](https://img.shields.io/badge/Підтримати%20на%20monobank-7WAsDeZMeE-f43f5e?style=for-the-badge&logo=heart)](https://send.monobank.ua/jar/7WAsDeZMeE)
+
+## 👤 Автор
+
+- **Mak5er** — [GitHub](https://github.com/Mak5er) • [Репозиторій проекту](https://github.com/Mak5er/code2uml)
