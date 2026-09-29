@@ -102,11 +102,7 @@ export default function App() {
     }, []);
 
     const toggleTheme = () => {
-        setIsDark((prev) => {
-            const next = !prev;
-            showToast(next ? 'Увімкнено темну тему' : 'Увімкнено світлу тему');
-            return next;
-        });
+        setIsDark((prev) => !prev);
     };
 
     // Diagram compilation
