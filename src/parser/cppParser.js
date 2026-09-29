@@ -834,20 +834,81 @@ class CppParser {
     }
 
     cleanStatements(stmts) {
-        const cleaned = [];
+        if (!Array.isArray(stmts)) return stmts;
+
+        // 1. Recursively clean nested control structures (if, while, do-while, for)
+        for (const s of stmts) {
+            if (!s) continue;
+            if (s.type === 'if') {
+                if (s.thenBranch) s.thenBranch = this.cleanStatements(s.thenBranch);
+                if (s.elseBranch) s.elseBranch = this.cleanStatements(s.elseBranch);
+            } else if (s.type === 'while' || s.type === 'do-while' || s.type === 'for') {
+                if (s.body) s.body = this.cleanStatements(s.body);
+            }
+        }
+
+        // 2. Remove prompt outputs that immediately precede an input
+        const afterPrompts = [];
         for (let i = 0; i < stmts.length; i++) {
             const curr = stmts[i];
             const next = i + 1 < stmts.length ? stmts[i + 1] : null;
 
             // If prompt output is immediately followed by input, skip the prompt output
-            if (curr.type === 'output' && curr.isPromptCandidate && next && next.type === 'input') {
-                // Merge/skip prompt to match academic Slide 7 diagram
+            if (curr && curr.type === 'output' && curr.isPromptCandidate && next && next.type === 'input') {
                 continue;
             }
 
-            cleaned.push(curr);
+            if (curr) {
+                afterPrompts.push(curr);
+            }
         }
-        return cleaned;
+
+        // 3. Merge consecutive input statements into a single input node ("ввід a, b, c, d")
+        const merged = [];
+        let i = 0;
+        while (i < afterPrompts.length) {
+            const curr = afterPrompts[i];
+            if (curr.type === 'input') {
+                const combinedVars = [];
+                if (curr.variables && curr.variables.length > 0) {
+                    combinedVars.push(...curr.variables);
+                } else if (curr.text) {
+                    combinedVars.push(...curr.text.split(',').map(s => s.trim()).filter(Boolean));
+                }
+
+                let j = i + 1;
+                while (j < afterPrompts.length && afterPrompts[j].type === 'input') {
+                    const nextInput = afterPrompts[j];
+                    if (nextInput.variables && nextInput.variables.length > 0) {
+                        combinedVars.push(...nextInput.variables);
+                    } else if (nextInput.text) {
+                        combinedVars.push(...nextInput.text.split(',').map(s => s.trim()).filter(Boolean));
+                    }
+                    j++;
+                }
+
+                if (j === i + 1) {
+                    // Only one standalone input
+                    merged.push(curr);
+                } else {
+                    // Multiple consecutive inputs: merge variables into a single block
+                    const varList = combinedVars.join(', ');
+                    merged.push({
+                        type: 'input',
+                        raw: `cin >> ${combinedVars.join(' >> ')};`,
+                        variables: combinedVars,
+                        text: varList,
+                        umlText: `ввід ${varList}`
+                    });
+                }
+                i = j;
+            } else {
+                merged.push(curr);
+                i++;
+            }
+        }
+
+        return merged;
     }
 }
 
