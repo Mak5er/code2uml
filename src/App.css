@@ -1,0 +1,637 @@
+/* Modern sleek styling for C++ Diagram Generator (React + Vite) */
+
+:root {
+    --bg-primary: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-secondary: #f1f5f9;
+    --border-color: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-light: #eff6ff;
+    --success: #10b981;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+}
+
+/* Dark Theme Variables */
+html.dark {
+    --bg-primary: #090d16;
+    --bg-surface: #111827;
+    --bg-secondary: #1e293b;
+    --border-color: #334155;
+    --border-hover: #475569;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --accent-light: rgba(59, 130, 246, 0.15);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+    line-height: 1.5;
+    overflow: hidden;
+}
+
+.app-root {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* App Header */
+.app-header {
+    height: 60px;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 20;
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brand-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: white;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+    line-height: 1;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+}
+
+.brand h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    outline: none;
+}
+
+.btn-primary {
+    background-color: var(--accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.btn-outline {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-outline:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-hover);
+}
+
+.theme-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.divider-v {
+    height: 24px;
+    width: 1px;
+    background-color: var(--border-color);
+    margin: 0 4px;
+}
+
+.btn-sm {
+    padding: 3px 8px;
+    font-size: 11.5px;
+}
+
+/* App Main Container */
+.app-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Left Editor Panel */
+.panel-editor {
+    width: 440px;
+    min-width: 340px;
+    max-width: 600px;
+    background-color: var(--bg-surface);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.panel-header {
+    height: 44px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+}
+
+.panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.code-wrapper {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background-color: #ffffff;
+}
+
+.line-numbers {
+    width: 42px;
+    padding: 14px 6px 14px 0;
+    background-color: #fafbfc;
+    border-right: 1px solid #edf2f7;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 20px;
+    text-align: right;
+    color: #94a3b8;
+    user-select: none;
+    overflow: hidden;
+}
+
+.code-textarea {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 20px;
+    color: #1e293b;
+    background: transparent;
+    tab-size: 4;
+    white-space: pre;
+    overflow: auto;
+}
+
+.panel-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.code-status-text {
+    font-weight: 500;
+}
+
+.supported-text {
+    font-size: 11px;
+}
+
+/* Dark mode editor overrides */
+html.dark .code-wrapper {
+    background-color: #0b0f19;
+}
+
+html.dark .line-numbers {
+    background-color: #0d121f;
+    border-right: 1px solid #1e293b;
+    color: #64748b;
+}
+
+html.dark .code-textarea {
+    color: #e2e8f0;
+    background-color: #0b0f19;
+    caret-color: #3b82f6;
+}
+
+/* Right Viewer Panel */
+.panel-viewer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+    overflow: hidden;
+    position: relative;
+}
+
+.viewer-header {
+    height: 44px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    flex-shrink: 0;
+}
+
+.tabs-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: var(--bg-secondary);
+    padding: 3px;
+    border-radius: var(--radius-sm);
+}
+
+.tab-btn {
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tab-btn.active {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.canvas-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.zoom-slider-container {
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+}
+
+.zoom-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 95px;
+    height: 5px;
+    border-radius: 9999px;
+    background: #e2e8f0;
+    outline: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.zoom-slider:hover {
+    background: #cbd5e1;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #2563eb;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.zoom-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: #1d4ed8;
+}
+
+.zoom-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #2563eb;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.icon-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.icon-btn:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.zoom-indicator {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 44px;
+    text-align: center;
+    user-select: none;
+    padding: 3px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.zoom-indicator:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Diagram Canvas Workspace */
+.diagram-workspace {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+    background: radial-gradient(#e2e8f0 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-color: #f8fafc;
+}
+
+.diagram-workspace:active {
+    cursor: grabbing;
+}
+
+.diagram-viewport {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+    padding: 40px;
+    display: flex;
+    gap: 50px;
+    align-items: flex-start;
+}
+
+.diagram-card {
+    background-color: #ffffff;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.diagram-card-header {
+    padding: 10px 18px;
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.diagram-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: var(--accent-light);
+    color: var(--accent);
+}
+
+/* Card Header Quick Actions */
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-card-action {
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-card-action:hover {
+    background-color: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.diagram-card-content {
+    padding: 28px;
+    background-color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.diagram-card-content svg {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: none;
+    overflow: visible;
+}
+
+/* Diagram interactive node hover styling */
+.diagram-node {
+    cursor: default;
+    transition: all 0.15s ease;
+}
+
+.diagram-node:hover rect,
+.diagram-node:hover polygon,
+.diagram-node:hover path {
+    stroke: #2563eb !important;
+    stroke-width: 2.2px !important;
+}
+
+/* Dark mode overrides for controls, workspace, cards */
+html.dark .zoom-slider {
+    background: #334155;
+}
+
+html.dark .zoom-slider:hover {
+    background: #475569;
+}
+
+html.dark .diagram-workspace {
+    background: radial-gradient(#1e293b 1.5px, transparent 1.5px);
+    background-size: 20px 20px;
+    background-color: #080c14;
+}
+
+html.dark .diagram-card {
+    border-color: #334155;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+}
+
+html.dark .diagram-card-header {
+    background-color: #1e293b;
+    border-bottom: 1px solid #334155;
+}
+
+html.dark .diagram-card-title {
+    color: #f8fafc;
+}
+
+html.dark .badge {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+html.dark .btn-card-action {
+    background-color: #111827;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+html.dark .btn-card-action:hover {
+    background-color: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
+    color: #93c5fd;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background-color: #1e293b;
+    color: white;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.25s ease;
+    pointer-events: none;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+html.dark .toast {
+    background-color: #1e293b;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+}
+
+.empty-state {
+    padding: 70px 24px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    font-style: italic;
+    text-align: center;
+    user-select: none;
+}
