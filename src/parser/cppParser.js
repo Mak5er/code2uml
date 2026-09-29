@@ -367,17 +367,18 @@ class CppParser {
             return this.parseReturn();
         }
 
-        // cin.get() or system("pause") / getch() - skip helper
-        if (t.type === 'IDENTIFIER' && (t.value === 'cin' || ['system', 'getch', '_getch'].includes(t.value))) {
-            if (t.value === 'cin' && this.peek(1)?.value === '.' && this.peek(2)?.value === 'get') {
-                while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) this.consume();
-                if (this.match('SYMBOL', ';')) this.consume();
-                return null;
-            } else if (t.value !== 'cin') {
-                while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) this.consume();
-                if (this.match('SYMBOL', ';')) this.consume();
-                return null;
-            }
+        // cin helper methods: cin.get(), cin.sync(), cin.ignore(), cin.clear()
+        if (t.type === 'IDENTIFIER' && t.value === 'cin' && this.peek(1)?.value === '.') {
+            while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) this.consume();
+            if (this.match('SYMBOL', ';')) this.consume();
+            return null;
+        }
+
+        // System pauses / console setup / random seed boilerplate
+        if (t.type === 'IDENTIFIER' && ['system', 'getch', '_getch', 'SetConsoleCP', 'SetConsoleOutputCP', 'srand'].includes(t.value)) {
+            while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) this.consume();
+            if (this.match('SYMBOL', ';')) this.consume();
+            return null;
         }
 
         // Constants (const / constexpr) - ignore compile-time constant definitions in algorithm diagram
@@ -400,11 +401,15 @@ class CppParser {
             return this.parseDeclaration();
         }
 
+        if (t.value === 'getline' || (t.value === 'std' && this.peek(1)?.value === '::' && this.peek(2)?.value === 'getline')) {
+            return this.parseGetline();
+        }
+
         if (t.value === 'cin' || (t.value === 'std' && this.peek(1)?.value === '::' && this.peek(2)?.value === 'cin')) {
             return this.parseCin();
         }
 
-        if (t.value === 'cout' || (t.value === 'std' && this.peek(1)?.value === '::' && this.peek(2)?.value === 'cout')) {
+        if (['cout', 'cerr', 'clog'].includes(t.value) || (t.value === 'std' && this.peek(1)?.value === '::' && ['cout', 'cerr', 'clog'].includes(this.peek(2)?.value))) {
             return this.parseCout();
         }
 
@@ -443,6 +448,47 @@ class CppParser {
         return null;
     }
 
+    parseGetline() {
+        while (this.peek()?.value === 'std' || this.peek()?.value === '::' || this.peek()?.value === 'getline') {
+            this.consume();
+        }
+        if (this.match('SYMBOL', '(')) this.consume();
+
+        // 1st arg: stream (cin or file)
+        while (this.pos < this.tokens.length && !this.match('SYMBOL', ',') && !this.match('SYMBOL', ')')) {
+            this.consume();
+        }
+        if (this.match('SYMBOL', ',')) this.consume();
+
+        // 2nd arg: target variable
+        const targetTokens = [];
+        let parenDepth = 0;
+        while (this.pos < this.tokens.length) {
+            if (this.match('SYMBOL', '(')) parenDepth++;
+            else if (this.match('SYMBOL', ')')) {
+                if (parenDepth === 0) break;
+                parenDepth--;
+            } else if (this.match('SYMBOL', ',') && parenDepth === 0) {
+                break;
+            }
+            targetTokens.push(this.consume());
+        }
+
+        while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) {
+            this.consume();
+        }
+        if (this.match('SYMBOL', ';')) this.consume();
+
+        const targetVar = this.formatExpression(targetTokens);
+        return {
+            type: 'input',
+            raw: `getline(cin, ${targetVar});`,
+            variables: [targetVar],
+            text: targetVar,
+            umlText: `ввід ${targetVar}`
+        };
+    }
+
     parseCin() {
         while (this.peek()?.value === 'std' || this.peek()?.value === '::' || this.peek()?.value === 'cin') {
             this.consume();
@@ -452,8 +498,12 @@ class CppParser {
         while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) {
             if (this.match('OPERATOR', '>>')) {
                 this.consume();
-                if (this.peek() && this.peek().type === 'IDENTIFIER') {
-                    vars.push(this.consume().value);
+                const varTokens = [];
+                while (this.pos < this.tokens.length && !this.match('OPERATOR', '>>') && !this.match('SYMBOL', ';')) {
+                    varTokens.push(this.consume());
+                }
+                if (varTokens.length > 0) {
+                    vars.push(this.formatExpression(varTokens));
                 }
             } else {
                 this.consume();
@@ -759,13 +809,16 @@ class CppParser {
 
         while (this.pos < this.tokens.length && !this.match('SYMBOL', '}')) {
             if (this.match('IDENTIFIER', 'case')) {
-                this.consume();
-                const valTokens = [];
-                while (this.pos < this.tokens.length && !this.match('SYMBOL', ':')) {
-                    valTokens.push(this.consume());
+                const caseVals = [];
+                while (this.match('IDENTIFIER', 'case')) {
+                    this.consume();
+                    const valTokens = [];
+                    while (this.pos < this.tokens.length && !this.match('SYMBOL', ':')) {
+                        valTokens.push(this.consume());
+                    }
+                    if (this.match('SYMBOL', ':')) this.consume();
+                    caseVals.push(this.formatExpression(valTokens));
                 }
-                if (this.match('SYMBOL', ':')) this.consume();
-                const caseVal = this.formatExpression(valTokens);
 
                 const caseStmts = [];
                 while (this.pos < this.tokens.length &&
@@ -783,8 +836,9 @@ class CppParser {
                         else caseStmts.push(s);
                     }
                 }
+                const cond = caseVals.map(v => `${switchVar} == ${v}`).join(' || ');
                 cases.push({
-                    condition: `${switchVar} == ${caseVal}`,
+                    condition: cond,
                     thenBranch: caseStmts
                 });
             } else if (this.match('IDENTIFIER', 'default')) {
@@ -954,6 +1008,18 @@ class CppParser {
                 }
                 // Basic arithmetic (+, -, *, /, %)
                 else if (['+', '-', '*', '/', '%'].includes(t.value) || ['+', '-', '*', '/', '%'].includes(next.value)) {
+                    res += ' ';
+                }
+                // Stream operators (<<, >>)
+                else if (['<<', '>>'].includes(t.value) || ['<<', '>>'].includes(next.value)) {
+                    res += ' ';
+                }
+                // Adjacent identifiers / keywords / numbers / strings (e.g. ifstream f, new Pracivnyk)
+                else if ((t.type === 'IDENTIFIER' || t.type === 'KEYWORD') &&
+                         (next.type === 'IDENTIFIER' || next.type === 'KEYWORD' || next.type === 'NUMBER' || next.type === 'STRING')) {
+                    res += ' ';
+                }
+                else if (t.type === 'STRING' && (next.type === 'IDENTIFIER' || next.type === 'KEYWORD')) {
                     res += ' ';
                 }
                 // Delimiters

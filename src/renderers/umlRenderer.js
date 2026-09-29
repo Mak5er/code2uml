@@ -530,18 +530,22 @@ class UmlRenderer {
             this.addLine(this.centerX + dSize / 2, dec2Y, rightColX - act3W / 2, dec2Y, true, 'arrow-uml');
             this.renderActionNode(rightColX, dec2Y, dim3, { isIO: act3?.type === 'output' || act3?.type === 'input' });
 
-            // Down arrow from dec2 to action 2 (B = вираз_2)
-            const act2 = chain.elseBranch[0];
-            const dim2 = this.calcActionDimensions(act2, act2?.type === 'output' || act2?.type === 'input');
+            // Down arrow from dec2 to optional action 2 or straight to merge
+            const hasElse = chain.elseBranch && chain.elseBranch.length > 0;
+            const act2 = hasElse ? chain.elseBranch[0] : null;
+            const dim2 = hasElse ? this.calcActionDimensions(act2, act2?.type === 'output' || act2?.type === 'input') : { w: 0, h: 0 };
             const act2W = dim2.w;
             const act2H = dim2.h;
-            const act2Y = dec2Y + Math.max(50, act2H / 2 + 20);
+            const act2Y = hasElse ? dec2Y + Math.max(50, act2H / 2 + 20) : dec2Y;
 
-            this.addLine(this.centerX, dec2Y + dSize / 2, this.centerX, act2Y - act2H / 2, true, 'arrow-uml');
-            this.renderActionNode(this.centerX, act2Y, dim2, { isIO: act2?.type === 'output' || act2?.type === 'input' });
+            if (hasElse) {
+                this.addLine(this.centerX, dec2Y + dSize / 2, this.centerX, act2Y - act2H / 2, true, 'arrow-uml');
+                this.addLabel(this.centerX + 14, dec2Y + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
+                this.renderActionNode(this.centerX, act2Y, dim2, { isIO: act2?.type === 'output' || act2?.type === 'input' });
+            }
 
             // Central Merge diamond
-            const mergeCy = act2Y + act2H / 2 + 30;
+            const mergeCy = hasElse ? act2Y + act2H / 2 + 30 : dec2Y + Math.max(56, act3H / 2 + 28);
             this.addDiamond(this.centerX, mergeCy, dSize);
 
             // Right Merge diamond (as in Slide 7)
@@ -565,8 +569,13 @@ class UmlRenderer {
             // Right merge diamond connects with horizontal arrow into central merge diamond
             this.addLine(mergeRightX - dSize / 2, mergeRightY, this.centerX + dSize / 2, mergeCy, true, 'arrow-uml');
 
-            // Action 2 connects straight down into central merge diamond
-            this.addLine(this.centerX, act2Y + act2H / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
+            // Connect to central merge diamond
+            if (hasElse) {
+                this.addLine(this.centerX, act2Y + act2H / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
+            } else {
+                this.addLine(this.centerX, dec2Y + dSize / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
+                this.addLabel(this.centerX + 14, dec2Y + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
+            }
 
             // Line down from central merge diamond
             const nextY = mergeCy + dSize / 2 + this.options.nodeGap;

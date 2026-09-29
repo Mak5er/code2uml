@@ -540,8 +540,9 @@ class FlowchartRenderer {
             // Left (-): Goes down to second rhombus
             const { lines: cond2Lines, w: cond2W, h: cond2H } = this.calcRhombusDimensions(cond2.condition);
 
-            const act2 = chain.elseBranch[0];
-            const dim2 = this.calcActionDimensions(act2);
+            const hasElse = chain.elseBranch && chain.elseBranch.length > 0;
+            const act2 = hasElse ? chain.elseBranch[0] : null;
+            const dim2 = hasElse ? this.calcActionDimensions(act2) : { w: 0, h: 0 };
             const act2W = dim2.w;
             const act2H = dim2.h;
 
@@ -553,7 +554,7 @@ class FlowchartRenderer {
             const centerColX = cond1X;
             const cond2Offset = Math.max(160, cond1W / 2 + cond2W / 2 + 25, act3W / 2 + cond2W / 2 + 25);
             const cond2X = cond1X - cond2Offset;
-            const leftColX = cond2X - Math.max(110, cond2W / 2 + act2W / 2 + 25);
+            const leftColX = hasElse ? cond2X - Math.max(110, cond2W / 2 + act2W / 2 + 25) : cond2X - cond2W / 2 - 40;
             const cond2Y = Math.max(cond1Y + 54, cond1Y + cond1H / 2 + cond2H / 2 + 18);
 
             const midLeft1X = (cond1X - cond1W / 2 + cond2X) / 2;
@@ -584,19 +585,25 @@ class FlowchartRenderer {
             this.renderActionShape(centerColX, act3TopY + act3H / 2, dim3, act3?.type);
             const act3BottomY = act3TopY + act3H;
 
-            // Left (-): B = вираз_2
+            // Left (-): Optional else branch
             const midLeft2X = (cond2X - cond2W / 2 + leftColX) / 2;
             this.addLabel(midLeft2X, cond2Y - 11, minusLabel, { size: 14 });
-            const act2TopY = Math.max(cond2Y + 30, cond2Y + cond2H / 2 + 12);
+            let act2BottomY = cond2Y;
 
-            this.addPolyline([
-                [cond2X - cond2W / 2, cond2Y],
-                [leftColX, cond2Y],
-                [leftColX, act2TopY]
-            ], this.shouldDrawArrow('down'));
+            if (hasElse) {
+                const act2TopY = Math.max(cond2Y + 30, cond2Y + cond2H / 2 + 12);
+                this.addPolyline([
+                    [cond2X - cond2W / 2, cond2Y],
+                    [leftColX, cond2Y],
+                    [leftColX, act2TopY]
+                ], this.shouldDrawArrow('down'));
 
-            this.renderActionShape(leftColX, act2TopY + act2H / 2, dim2, act2?.type);
-            const act2BottomY = act2TopY + act2H;
+                this.renderActionShape(leftColX, act2TopY + act2H / 2, dim2, act2?.type);
+                act2BottomY = act2TopY + act2H;
+            } else {
+                this.addLine(cond2X - cond2W / 2, cond2Y, leftColX, cond2Y, false);
+                act2BottomY = cond2Y;
+            }
 
             // Bottom horizontal bus line at mergeY
             const mergeY = Math.max(act1BottomY, act2BottomY, act3BottomY) + 24;
