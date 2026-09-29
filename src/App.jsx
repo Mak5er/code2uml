@@ -147,28 +147,67 @@ export default function App() {
     };
 
     const handleExportSvg = () => {
-        const svgEl = getActiveSvgElement();
-        if (!svgEl) {
-            showToast('Спочатку згенеруйте діаграму');
-            return;
+        if (activeTab === 'side-by-side') {
+            const fcEl = flowchartRef.current?.querySelector('svg');
+            const umlEl = umlRef.current?.querySelector('svg');
+            if (!fcEl && !umlEl) {
+                showToast('Спочатку згенеруйте діаграми');
+                return;
+            }
+            if (fcEl) {
+                exportSvg(fcEl, 'flowchart.svg');
+            }
+            if (umlEl) {
+                setTimeout(() => {
+                    exportSvg(umlEl, 'uml_activity.svg');
+                }, 150);
+            }
+            showToast('✓ Завантажено обидва файли: flowchart.svg та uml_activity.svg');
+        } else {
+            const svgEl = getActiveSvgElement();
+            if (!svgEl) {
+                showToast('Спочатку згенеруйте діаграму');
+                return;
+            }
+            const filename = activeTab === 'uml' ? 'uml_activity.svg' : 'flowchart.svg';
+            exportSvg(svgEl, filename);
+            showToast(`✓ Завантажено ${filename}`);
         }
-        const filename = activeTab === 'uml' ? 'uml_activity.svg' : 'flowchart.svg';
-        exportSvg(svgEl, filename);
-        showToast(`✓ Завантажено ${filename}`);
     };
 
     const handleExportPng = async () => {
-        const svgEl = getActiveSvgElement();
-        if (!svgEl) {
-            showToast('Спочатку згенеруйте діаграму');
-            return;
-        }
-        const filename = activeTab === 'uml' ? 'uml_activity.png' : 'flowchart.png';
-        try {
-            await exportPng(svgEl, filename, 2.5);
-            showToast(`✓ Завантажено ${filename}`);
-        } catch {
-            showToast('Не вдалося експортувати PNG');
+        if (activeTab === 'side-by-side') {
+            const fcEl = flowchartRef.current?.querySelector('svg');
+            const umlEl = umlRef.current?.querySelector('svg');
+            if (!fcEl && !umlEl) {
+                showToast('Спочатку згенеруйте діаграми');
+                return;
+            }
+            try {
+                if (fcEl) {
+                    await exportPng(fcEl, 'flowchart.png', 2.5);
+                }
+                if (umlEl) {
+                    await new Promise(r => setTimeout(r, 150));
+                    await exportPng(umlEl, 'uml_activity.png', 2.5);
+                }
+                showToast('✓ Завантажено обидва файли: flowchart.png та uml_activity.png');
+            } catch {
+                showToast('Не вдалося експортувати PNG');
+            }
+        } else {
+            const svgEl = getActiveSvgElement();
+            if (!svgEl) {
+                showToast('Спочатку згенеруйте діаграму');
+                return;
+            }
+            const filename = activeTab === 'uml' ? 'uml_activity.png' : 'flowchart.png';
+            try {
+                await exportPng(svgEl, filename, 2.5);
+                showToast(`✓ Завантажено ${filename}`);
+            } catch {
+                showToast('Не вдалося експортувати PNG');
+            }
         }
     };
 
@@ -211,6 +250,7 @@ export default function App() {
                 onCopySvg={handleCopySvg}
                 isDark={isDark}
                 onToggleTheme={toggleTheme}
+                activeTab={activeTab}
             />
 
             <main className="app-container">
