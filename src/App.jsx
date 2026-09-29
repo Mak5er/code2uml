@@ -3,7 +3,6 @@ import Header from './components/Header';
 import CodeEditor from './components/CodeEditor';
 import ViewerPanel from './components/ViewerPanel';
 import Toast from './components/Toast';
-import { DEFAULT_CODE } from './constants/defaultCode';
 import { parseCppCode } from './parser/cppParser';
 import { FlowchartRenderer } from './renderers/flowchartRenderer';
 import { UmlRenderer } from './renderers/umlRenderer';
@@ -39,7 +38,7 @@ function compileCode(sourceCode, targetFunction, expressionMode = 'cpp') {
 }
 
 export default function App() {
-    const [code, setCode] = useState(DEFAULT_CODE);
+    const [code, setCode] = useState('');
 
     const [expressionMode, setExpressionMode] = useState(() => {
         try {
@@ -49,23 +48,13 @@ export default function App() {
         }
     });
 
-    // Initial diagrams rendered synchronously before first paint
-    const [initialState] = useState(() => {
-        try {
-            const savedMode = localStorage.getItem('expressionMode') || 'cpp';
-            return compileCode(DEFAULT_CODE, null, savedMode);
-        } catch {
-            return { flowchartSvg: '', umlSvg: '', status: 'Готово до аналізу', count: 0, functions: [], activeFunction: 'main' };
-        }
-    });
-
-    const [status, setStatus] = useState(initialState.status);
-    const [flowchartSvg, setFlowchartSvg] = useState(initialState.flowchartSvg);
-    const [umlSvg, setUmlSvg] = useState(initialState.umlSvg);
+    const [status, setStatus] = useState('Поле коду порожнє');
+    const [flowchartSvg, setFlowchartSvg] = useState('');
+    const [umlSvg, setUmlSvg] = useState('');
     const [activeTab, setActiveTab] = useState('side-by-side');
     const [toast, setToast] = useState({ message: '', isVisible: false });
-    const [functions, setFunctions] = useState(initialState.functions || []);
-    const [selectedFunction, setSelectedFunction] = useState(initialState.activeFunction || 'main');
+    const [functions, setFunctions] = useState([]);
+    const [selectedFunction, setSelectedFunction] = useState('main');
 
     // Theme state (checks localStorage and system preference)
     const [isDark, setIsDark] = useState(() => {
