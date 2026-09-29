@@ -10,7 +10,9 @@ export default function Header({
     activeTab,
     functions = [],
     selectedFunction = 'main',
-    onSelectFunction
+    onSelectFunction,
+    expressionMode = 'cpp',
+    onToggleExpressionMode
 }) {
     const [downloadOpen, setDownloadOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -66,6 +68,28 @@ export default function Header({
                         </select>
                     </div>
                 )}
+
+                <div className="divider-v" />
+
+                {/* Expression mode switcher: C++ vs Mathematical format */}
+                <div className="expression-mode-switcher" role="group" aria-label="Формат виразів">
+                    <button
+                        type="button"
+                        className={`mode-toggle-btn ${expressionMode === 'cpp' ? 'active' : ''}`}
+                        onClick={() => onToggleExpressionMode && onToggleExpressionMode('cpp')}
+                        title="Формат виразів як у C++ коді (наприклад pow(x, 2), /)"
+                    >
+                        C++
+                    </button>
+                    <button
+                        type="button"
+                        className={`mode-toggle-btn ${expressionMode === 'math' ? 'active' : ''}`}
+                        onClick={() => onToggleExpressionMode && onToggleExpressionMode('math')}
+                        title="Математичний формат формул (дроби з горизонтальною рискою, степені x², корені √)"
+                    >
+                        <span className="math-sigma-symbol">∑</span> Математика
+                    </button>
+                </div>
 
                 <div className="divider-v" />
 

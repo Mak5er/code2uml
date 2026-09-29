@@ -10,7 +10,7 @@ import { UmlRenderer } from './renderers/umlRenderer';
 import { exportSvg, exportPng } from './utils/exportUtils';
 import './App.css';
 
-function compileCode(sourceCode, targetFunction) {
+function compileCode(sourceCode, targetFunction, expressionMode = 'cpp') {
     const trimmed = (sourceCode || '').trim();
     if (!trimmed) {
         return {
@@ -23,9 +23,9 @@ function compileCode(sourceCode, targetFunction) {
         };
     }
     const ast = parseCppCode(trimmed, { arrowRule: 'all', targetFunction });
-    const fcRenderer = new FlowchartRenderer(ast, { arrowRule: 'all' });
+    const fcRenderer = new FlowchartRenderer(ast, { arrowRule: 'all', expressionMode });
     const fcResult = fcRenderer.render();
-    const umlRenderer = new UmlRenderer(ast);
+    const umlRenderer = new UmlRenderer(ast, { expressionMode });
     const umlResult = umlRenderer.render();
     const funcLabel = ast.functions && ast.functions.length > 1 ? ` (функція ${ast.functionName})` : '';
     return {
@@ -41,10 +41,19 @@ function compileCode(sourceCode, targetFunction) {
 export default function App() {
     const [code, setCode] = useState(DEFAULT_CODE);
 
+    const [expressionMode, setExpressionMode] = useState(() => {
+        try {
+            return localStorage.getItem('expressionMode') || 'cpp';
+        } catch {
+            return 'cpp';
+        }
+    });
+
     // Initial diagrams rendered synchronously before first paint
     const [initialState] = useState(() => {
         try {
-            return compileCode(DEFAULT_CODE);
+            const savedMode = localStorage.getItem('expressionMode') || 'cpp';
+            return compileCode(DEFAULT_CODE, null, savedMode);
         } catch {
             return { flowchartSvg: '', umlSvg: '', status: 'Готово до аналізу', count: 0, functions: [], activeFunction: 'main' };
         }
@@ -101,7 +110,7 @@ export default function App() {
     };
 
     // Diagram compilation
-    const generateDiagrams = useCallback((sourceCode, targetFunc = null, silent = false) => {
+    const generateDiagrams = useCallback((sourceCode, targetFunc = null, silent = false, modeToUse = null) => {
         const trimmed = (sourceCode || '').trim();
         if (!trimmed) {
             setFlowchartSvg('');
@@ -114,7 +123,8 @@ export default function App() {
 
         try {
             const funcToUse = targetFunc || selectedFunction;
-            const res = compileCode(trimmed, funcToUse);
+            const expMode = modeToUse || expressionMode;
+            const res = compileCode(trimmed, funcToUse, expMode);
             setFlowchartSvg(res.flowchartSvg);
             setUmlSvg(res.umlSvg);
             setStatus(res.status);
@@ -132,7 +142,16 @@ export default function App() {
                 showToast(`Помилка: ${err.message}`);
             }
         }
-    }, [selectedFunction, showToast]);
+    }, [selectedFunction, expressionMode, showToast]);
+
+    const handleToggleExpressionMode = (mode) => {
+        setExpressionMode(mode);
+        try {
+            localStorage.setItem('expressionMode', mode);
+        } catch {}
+        generateDiagrams(code, selectedFunction, false, mode);
+        showToast(mode === 'math' ? 'Вирази: Математичний вигляд (дроби, степені)' : 'Вирази: Вигляд C++');
+    };
 
     const handleSelectFunction = (funcName) => {
         setSelectedFunction(funcName);
@@ -258,6 +277,8 @@ export default function App() {
                 functions={functions}
                 selectedFunction={selectedFunction}
                 onSelectFunction={handleSelectFunction}
+                expressionMode={expressionMode}
+                onToggleExpressionMode={handleToggleExpressionMode}
             />
 
             <main className="app-container">

@@ -169,6 +169,49 @@ const SVG = {
         `;
     },
 
+    // 3b. Fraction Rectangle (Mathematical fraction: A = num / den)
+    fractionRectangle(cx, cy, width, height, target, numText, denText, options = {}) {
+        const x = cx - width / 2;
+        const y = cy - height / 2;
+        const strokeColor = options.stroke || '#1e293b';
+        const fillColor = options.fill || '#ffffff';
+        const textColor = options.textColor || '#0f172a';
+
+        const charW = 8.5;
+        const prefix = target ? `${target} = ` : '';
+        const prefixW = prefix.length * charW;
+        const numW = numText.length * charW;
+        const denW = denText.length * charW;
+        const barW = Math.max(numW, denW) + 20;
+        const totalW = prefixW + barW;
+
+        const startX = cx - totalW / 2;
+        const prefixX = startX + prefixW / 2;
+        const fracX = startX + prefixW + barW / 2;
+        const barX1 = fracX - barW / 2;
+        const barX2 = fracX + barW / 2;
+
+        let contentSvg = '';
+        if (prefix) {
+            contentSvg += `<text x="${prefixX}" y="${cy + 4.5}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13.5" font-weight="500" fill="${textColor}">${prefix}</text>`;
+        }
+        contentSvg += `<text x="${fracX}" y="${cy - 7}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12.5" font-weight="500" fill="${textColor}">${numText}</text>`;
+        contentSvg += `<line x1="${barX1}" y1="${cy}" x2="${barX2}" y2="${cy}" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" />`;
+        contentSvg += `<text x="${fracX}" y="${cy + 15}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12.5" font-weight="500" fill="${textColor}">${denText}</text>`;
+
+        const isUml = options.isUml;
+        const rx = isUml ? 10 : 0;
+        const ry = isUml ? 10 : 0;
+
+        return `
+        <g class="diagram-node process-node fraction-node">
+            <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${ry}"
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+            ${contentSvg}
+        </g>
+        `;
+    },
+
     // 4. Rhombus / Diamond (Decision: x < 0)
     rhombus(cx, cy, width, height, text, options = {}) {
         const pTop = `${cx},${cy - height / 2}`;

@@ -4,12 +4,14 @@
  */
 
 import { SVG, BoundingBox } from '../utils/svgHelpers.js';
+import { toMathExpression, parseFraction } from '../utils/mathFormatter.js';
 
 class FlowchartRenderer {
     constructor(ast, options = {}) {
         this.ast = ast;
         this.options = Object.assign({
             expressionStyle: 'original', // 'original' (реальний код) or 'lecture' (вираз_1)
+            expressionMode: 'cpp',       // 'cpp' (C++ код) or 'math' (математичні формули)
             branchLabels: 'plus_minus',  // 'plus_minus' (+/-) or 'yes_no' (Так/Ні)
             arrowRule: 'all',           // 'all' (стрілки на всіх переходах)
             outputShape: 'document',    // 'document' (wave bottom) or 'parallelogram'
@@ -39,6 +41,11 @@ class FlowchartRenderer {
     addRectangle(cx, cy, w, h, text, opts) {
         this.bounds.addRect(cx - w / 2, cy - h / 2, w, h);
         this.elements.push(SVG.rectangle(cx, cy, w, h, text, opts));
+    }
+
+    addFractionRectangle(cx, cy, w, h, target, numText, denText, opts = {}) {
+        this.bounds.addRect(cx - w / 2, cy - h / 2, w, h);
+        this.elements.push(SVG.fractionRectangle(cx, cy, w, h, target, numText, denText, opts));
     }
 
     addRhombus(cx, cy, w, h, text, opts) {
@@ -220,16 +227,73 @@ class FlowchartRenderer {
         this.currentY = nextY;
     }
 
-    renderProcess(stmt) {
-        const text = this.getNodeText(stmt);
-        const lines = SVG.splitText(text, 34);
-        const maxLen = Math.max(...lines.map(l => l.length));
-        const w = Math.max(110, maxLen * 8.5 + 26);
-        const h = Math.max(38, lines.length * 19 + 14);
-        const cy = this.currentY + h / 2;
+    checkFraction(stmt) {
+        if (!stmt) return null;
+        let expr = stmt.expr;
+        let target = stmt.target || '';
+        if (!expr && stmt.text && stmt.text.includes('=')) {
+            const parts = stmt.text.split('=');
+            target = parts[0].trim();
+            expr = parts.slice(1).join('=').trim();
+        }
+        if (!expr) return null;
+        const frac = parseFraction(expr);
+        if (frac.isFraction) {
+            return {
+                target: target,
+                numText: toMathExpression(frac.numerator),
+                denText: toMathExpression(frac.denominator)
+            };
+        }
+        return null;
+    }
 
-        this.addRectangle(this.centerX, cy, w, h, lines);
-        this.currentY += h;
+    calcActionDimensions(actOrText, isIO = false, maxChars = 34) {
+        if (typeof actOrText === 'object' && actOrText !== null) {
+            if (this.options.expressionMode === 'math' && actOrText.type === 'process') {
+                const frac = this.checkFraction(actOrText);
+                if (frac) {
+                    const charW = 8.5;
+                    const prefix = frac.target ? `${frac.target} = ` : '';
+                    const prefixW = prefix.length * charW;
+                    const numW = frac.numText.length * charW;
+                    const denW = frac.denText.length * charW;
+                    const barW = Math.max(numW, denW) + 20;
+                    const totalW = prefixW + barW;
+                    return {
+                        isFraction: true,
+                        frac,
+                        lines: [],
+                        w: Math.max(136, totalW + 28),
+                        h: 56
+                    };
+                }
+            }
+            const text = this.getNodeText(actOrText);
+            const lines = SVG.splitText(text, maxChars);
+            const maxL = Math.max(...lines.map(l => l.length));
+            const w = Math.max(isIO ? 100 : 136, maxL * 8.5 + 24);
+            const h = Math.max(38, lines.length * 19 + 14);
+            return { isFraction: false, lines, w, h };
+        } else {
+            let text = String(actOrText || '');
+            if (this.options.expressionMode === 'math') {
+                text = toMathExpression(text);
+            }
+            const lines = SVG.splitText(text, maxChars);
+            const maxL = Math.max(...lines.map(l => l.length));
+            const w = Math.max(isIO ? 100 : 136, maxL * 8.5 + 24);
+            const h = Math.max(38, lines.length * 19 + 14);
+            return { isFraction: false, lines, w, h };
+        }
+    }
+
+    renderProcess(stmt) {
+        const dim = this.calcActionDimensions(stmt, false);
+        const cy = this.currentY + dim.h / 2;
+
+        this.renderActionShape(this.centerX, cy, dim, stmt.type);
+        this.currentY += dim.h;
 
         const nextY = this.currentY + this.options.nodeGap;
         this.addLine(this.centerX, this.currentY, this.centerX, nextY, this.shouldDrawArrow('down'));
@@ -252,7 +316,7 @@ class FlowchartRenderer {
         let cur = stmt;
         while (cur && cur.type === 'if') {
             conditions.push({
-                condition: cur.condition,
+                condition: this.getConditionText(cur.condition),
                 thenBranch: cur.thenBranch || []
             });
             if (cur.elseBranch && cur.elseBranch.length === 1 && cur.elseBranch[0].type === 'if') {
@@ -267,8 +331,17 @@ class FlowchartRenderer {
         return { conditions: conditions, elseBranch: [] };
     }
 
+    getConditionText(cond) {
+        if (!cond) return '';
+        if (this.options.expressionMode === 'math') {
+            return toMathExpression(cond);
+        }
+        return cond;
+    }
+
     calcRhombusDimensions(conditionText) {
-        const lines = SVG.splitText(conditionText, 34);
+        const text = this.getConditionText(conditionText);
+        const lines = SVG.splitText(text, 34);
         const maxCondLen = Math.max(...lines.map(l => l.length));
         let w = Math.max(130, maxCondLen * 10 + 52);
         const h = Math.max(50, lines.length * 24 + 18);
@@ -291,13 +364,8 @@ class FlowchartRenderer {
 
         // Calculate max action width
         const thenStmts = stmt.thenBranch || [];
-        let maxActW = 136;
-        for (const act of thenStmts) {
-            const t = this.getNodeText(act);
-            const actLines = SVG.splitText(t, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            maxActW = Math.max(maxActW, maxL * 8.5 + 24);
-        }
+        const thenDims = thenStmts.map(act => this.calcActionDimensions(act));
+        let maxActW = Math.max(136, ...thenDims.map(d => d.w));
 
         // Dynamic branch offset to prevent any overlap or clipping
         const branchOffset = Math.max(165, condW / 2 + maxActW / 2 + 35);
@@ -317,14 +385,11 @@ class FlowchartRenderer {
 
         // Action block(s) on right
         let actionBottomY = actionTopY;
-        for (const act of thenStmts) {
-            const text = this.getNodeText(act);
-            const actLines = SVG.splitText(text, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            const actW = Math.max(136, maxL * 8.5 + 24);
-            const actH = Math.max(38, actLines.length * 19 + 14);
-            this.renderActionShape(rightColX, actionBottomY + actH / 2, actW, actH, actLines, act.type);
-            actionBottomY += actH;
+        for (let i = 0; i < thenStmts.length; i++) {
+            const act = thenStmts[i];
+            const dim = thenDims[i];
+            this.renderActionShape(rightColX, actionBottomY + dim.h / 2, dim, act.type);
+            actionBottomY += dim.h;
         }
 
         // - label placed at midpoint of horizontal segment
@@ -364,18 +429,10 @@ class FlowchartRenderer {
         const plusLabel = this.options.branchLabels === 'yes_no' ? 'Так' : '+';
         const minusLabel = this.options.branchLabels === 'yes_no' ? 'Ні' : '-';
 
-        let maxThenW = 136;
-        for (const act of (stmt.thenBranch || [])) {
-            const t = this.getNodeText(act);
-            const actLines = SVG.splitText(t, 34);
-            maxThenW = Math.max(maxThenW, Math.max(...actLines.map(l => l.length)) * 8.5 + 24);
-        }
-        let maxElseW = 136;
-        for (const act of (stmt.elseBranch || [])) {
-            const t = this.getNodeText(act);
-            const actLines = SVG.splitText(t, 34);
-            maxElseW = Math.max(maxElseW, Math.max(...actLines.map(l => l.length)) * 8.5 + 24);
-        }
+        const thenDims = (stmt.thenBranch || []).map(act => this.calcActionDimensions(act));
+        const elseDims = (stmt.elseBranch || []).map(act => this.calcActionDimensions(act));
+        const maxThenW = Math.max(136, ...thenDims.map(d => d.w));
+        const maxElseW = Math.max(136, ...elseDims.map(d => d.w));
 
         const maxSideW = Math.max(maxThenW, maxElseW);
         const branchOffset = Math.max(165, condW / 2 + maxSideW / 2 + 35);
@@ -394,14 +451,11 @@ class FlowchartRenderer {
         ], this.shouldDrawArrow('down'));
 
         let rightBottomY = actionTopY;
-        for (const act of (stmt.thenBranch || [])) {
-            const text = this.getNodeText(act);
-            const actLines = SVG.splitText(text, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            const actW = Math.max(136, maxL * 8.5 + 24);
-            const actH = Math.max(38, actLines.length * 19 + 14);
-            this.renderActionShape(rightColX, rightBottomY + actH / 2, actW, actH, actLines, act.type);
-            rightBottomY += actH;
+        for (let i = 0; i < (stmt.thenBranch || []).length; i++) {
+            const act = stmt.thenBranch[i];
+            const dim = thenDims[i];
+            this.renderActionShape(rightColX, rightBottomY + dim.h / 2, dim, act.type);
+            rightBottomY += dim.h;
         }
 
         // - branch (left)
@@ -414,14 +468,11 @@ class FlowchartRenderer {
         ], this.shouldDrawArrow('down'));
 
         let leftBottomY = actionTopY;
-        for (const act of (stmt.elseBranch || [])) {
-            const text = this.getNodeText(act);
-            const actLines = SVG.splitText(text, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            const actW = Math.max(136, maxL * 8.5 + 24);
-            const actH = Math.max(38, actLines.length * 19 + 14);
-            this.renderActionShape(leftColX, leftBottomY + actH / 2, actW, actH, actLines, act.type);
-            leftBottomY += actH;
+        for (let i = 0; i < (stmt.elseBranch || []).length; i++) {
+            const act = stmt.elseBranch[i];
+            const dim = elseDims[i];
+            this.renderActionShape(leftColX, leftBottomY + dim.h / 2, dim, act.type);
+            leftBottomY += dim.h;
         }
 
         const mergeY = Math.max(rightBottomY, leftBottomY) + 24;
@@ -455,10 +506,9 @@ class FlowchartRenderer {
 
             // Right (+): B = вираз_1
             const act1 = cond1.thenBranch[0];
-            const text1 = this.getNodeText(act1);
-            const act1Lines = SVG.splitText(text1, 34);
-            const act1W = Math.max(136, Math.max(...act1Lines.map(l => l.length)) * 8.5 + 24);
-            const act1H = Math.max(38, act1Lines.length * 19 + 14);
+            const dim1 = this.calcActionDimensions(act1);
+            const act1W = dim1.w;
+            const act1H = dim1.h;
 
             const rightX = cond1X + Math.max(165, cond1W / 2 + act1W / 2 + 35);
 
@@ -472,23 +522,21 @@ class FlowchartRenderer {
                 [rightX, act1TopY]
             ], this.shouldDrawArrow('down'));
 
-            this.renderActionShape(rightX, act1TopY + act1H / 2, act1W, act1H, act1Lines, act1?.type);
+            this.renderActionShape(rightX, act1TopY + act1H / 2, dim1, act1?.type);
             const act1BottomY = act1TopY + act1H;
 
             // Left (-): Goes down to second rhombus
             const { lines: cond2Lines, w: cond2W, h: cond2H } = this.calcRhombusDimensions(cond2.condition);
 
             const act2 = chain.elseBranch[0];
-            const text2 = this.getNodeText(act2);
-            const act2Lines = SVG.splitText(text2, 34);
-            const act2W = Math.max(136, Math.max(...act2Lines.map(l => l.length)) * 8.5 + 24);
-            const act2H = Math.max(38, act2Lines.length * 19 + 14);
+            const dim2 = this.calcActionDimensions(act2);
+            const act2W = dim2.w;
+            const act2H = dim2.h;
 
             const act3 = cond2.thenBranch[0];
-            const text3 = this.getNodeText(act3);
-            const act3Lines = SVG.splitText(text3, 34);
-            const act3W = Math.max(136, Math.max(...act3Lines.map(l => l.length)) * 8.5 + 24);
-            const act3H = Math.max(38, act3Lines.length * 19 + 14);
+            const dim3 = this.calcActionDimensions(act3);
+            const act3W = dim3.w;
+            const act3H = dim3.h;
 
             const centerColX = cond1X;
             const cond2Offset = Math.max(160, cond1W / 2 + cond2W / 2 + 25, act3W / 2 + cond2W / 2 + 25);
@@ -521,7 +569,7 @@ class FlowchartRenderer {
                 [centerColX, act3TopY]
             ], this.shouldDrawArrow('down'));
 
-            this.renderActionShape(centerColX, act3TopY + act3H / 2, act3W, act3H, act3Lines, act3?.type);
+            this.renderActionShape(centerColX, act3TopY + act3H / 2, dim3, act3?.type);
             const act3BottomY = act3TopY + act3H;
 
             // Left (-): B = вираз_2
@@ -535,7 +583,7 @@ class FlowchartRenderer {
                 [leftColX, act2TopY]
             ], this.shouldDrawArrow('down'));
 
-            this.renderActionShape(leftColX, act2TopY + act2H / 2, act2W, act2H, act2Lines, act2?.type);
+            this.renderActionShape(leftColX, act2TopY + act2H / 2, dim2, act2?.type);
             const act2BottomY = act2TopY + act2H;
 
             // Bottom horizontal bus line at mergeY
@@ -581,11 +629,9 @@ class FlowchartRenderer {
 
             let actBottomY = actTopY;
             for (const act of condItem.thenBranch) {
-                const actH = 38;
-                const text = this.getNodeText(act);
-                const actW = Math.max(120, text.length * 8.5 + 24);
-                this.renderActionShape(rightX, actBottomY + actH / 2, actW, actH, text, act.type);
-                actBottomY += actH;
+                const dim = this.calcActionDimensions(act);
+                this.renderActionShape(rightX, actBottomY + dim.h / 2, dim, act.type);
+                actBottomY += dim.h;
             }
             branchBottoms.push({ x: rightX, y: actBottomY });
 
@@ -615,11 +661,9 @@ class FlowchartRenderer {
                 let elseBottomY = elseTopY;
                 if (chain.elseBranch && chain.elseBranch.length > 0) {
                     for (const act of chain.elseBranch) {
-                        const actH = 38;
-                        const text = this.getNodeText(act);
-                        const actW = Math.max(120, text.length * 8.5 + 24);
-                        this.renderActionShape(elseX, elseBottomY + actH / 2, actW, actH, text, act.type);
-                        elseBottomY += actH;
+                        const dim = this.calcActionDimensions(act);
+                        this.renderActionShape(elseX, elseBottomY + dim.h / 2, dim, act.type);
+                        elseBottomY += dim.h;
                     }
                 }
                 branchBottoms.push({ x: elseX, y: elseBottomY });
@@ -656,16 +700,14 @@ class FlowchartRenderer {
         this.addLabel(condX + 18, condY + condH / 2 + 14, plusLabel, { size: 14 });
         let bodyY = condY + condH / 2 + 22;
 
-        let maxBodyW = 110;
-        for (const act of (stmt.body || [])) {
-            const text = this.getNodeText(act);
-            const actLines = SVG.splitText(text, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            const actW = Math.max(110, maxL * 8.5 + 24);
-            const actH = Math.max(38, actLines.length * 19 + 14);
-            maxBodyW = Math.max(maxBodyW, actW);
-            this.renderActionShape(condX, bodyY + actH / 2, actW, actH, actLines, act.type);
-            bodyY += actH + 16;
+        const bodyDims = (stmt.body || []).map(act => this.calcActionDimensions(act));
+        let maxBodyW = Math.max(110, ...bodyDims.map(d => d.w));
+
+        for (let i = 0; i < (stmt.body || []).length; i++) {
+            const act = stmt.body[i];
+            const dim = bodyDims[i];
+            this.renderActionShape(condX, bodyY + dim.h / 2, dim, act.type);
+            bodyY += dim.h + 16;
         }
 
         // Loop back line (left -> up past cond -> top of cond)
@@ -700,7 +742,7 @@ class FlowchartRenderer {
     // 5. For loop
     renderFor(stmt) {
         if (stmt.init) {
-            this.renderProcess({ text: stmt.init });
+            this.renderProcess({ text: stmt.init, type: 'process' });
         }
 
         const { lines, w: condW, h: condH } = this.calcRhombusDimensions(stmt.condition);
@@ -715,26 +757,21 @@ class FlowchartRenderer {
         this.addLabel(condX + 18, condY + condH / 2 + 14, plusLabel, { size: 14 });
         let bodyY = condY + condH / 2 + 22;
 
-        let maxBodyW = 110;
-        for (const act of (stmt.body || [])) {
-            const text = this.getNodeText(act);
-            const actLines = SVG.splitText(text, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            const actW = Math.max(110, maxL * 8.5 + 24);
-            const actH = Math.max(38, actLines.length * 19 + 14);
-            maxBodyW = Math.max(maxBodyW, actW);
-            this.renderActionShape(condX, bodyY + actH / 2, actW, actH, actLines, act.type);
-            bodyY += actH + 16;
+        const bodyDims = (stmt.body || []).map(act => this.calcActionDimensions(act));
+        let maxBodyW = Math.max(110, ...bodyDims.map(d => d.w));
+
+        for (let i = 0; i < (stmt.body || []).length; i++) {
+            const act = stmt.body[i];
+            const dim = bodyDims[i];
+            this.renderActionShape(condX, bodyY + dim.h / 2, dim, act.type);
+            bodyY += dim.h + 16;
         }
 
         if (stmt.step) {
-            const stepLines = SVG.splitText(stmt.step, 34);
-            const maxL = Math.max(...stepLines.map(l => l.length));
-            const stepW = Math.max(100, maxL * 8.5 + 24);
-            const stepH = Math.max(38, stepLines.length * 19 + 14);
-            maxBodyW = Math.max(maxBodyW, stepW);
-            this.renderActionShape(condX, bodyY + stepH / 2, stepW, stepH, stepLines, 'process');
-            bodyY += stepH + 16;
+            const stepDim = this.calcActionDimensions(stmt.step, false);
+            maxBodyW = Math.max(maxBodyW, stepDim.w);
+            this.renderActionShape(condX, bodyY + stepDim.h / 2, stepDim, 'process');
+            bodyY += stepDim.h + 16;
         }
 
         const loopLeftX = condX - Math.max(condW / 2 + 50, maxBodyW / 2 + 50);
@@ -771,14 +808,10 @@ class FlowchartRenderer {
 
         let maxBodyW = 110;
         for (const act of (stmt.body || [])) {
-            const text = this.getNodeText(act);
-            const actLines = SVG.splitText(text, 34);
-            const maxL = Math.max(...actLines.map(l => l.length));
-            const actW = Math.max(110, maxL * 8.5 + 24);
-            const actH = Math.max(38, actLines.length * 19 + 14);
-            maxBodyW = Math.max(maxBodyW, actW);
-            this.renderActionShape(this.centerX, bodyY + actH / 2, actW, actH, actLines, act.type);
-            bodyY += actH + 16;
+            const dim = this.calcActionDimensions(act);
+            maxBodyW = Math.max(maxBodyW, dim.w);
+            this.renderActionShape(this.centerX, bodyY + dim.h / 2, dim, act.type);
+            bodyY += dim.h + 16;
         }
 
         const { lines, w: condW, h: condH } = this.calcRhombusDimensions(stmt.condition);
@@ -810,16 +843,40 @@ class FlowchartRenderer {
         if (this.options.expressionStyle === 'lecture' && node.simplifiedText) {
             return node.simplifiedText;
         }
-        return node.text || node.fullText || (node.raw ? node.raw.replace(/;$/, '') : '');
+        let txt = node.text || node.fullText || (node.raw ? node.raw.replace(/;$/, '') : '');
+        if (this.options.expressionMode === 'math') {
+            return toMathExpression(txt);
+        }
+        return txt;
     }
 
-    renderActionShape(cx, cy, w, h, text, type) {
-        if (type === 'output' && this.options.outputShape === 'document') {
-            this.addDocument(cx, cy, w, h, text);
-        } else if (type === 'input') {
-            this.addParallelogram(cx, cy, w, h, text);
+    renderActionShape(cx, cy, dimOrW, hOrType, textOrEmpty, typeOrActNode) {
+        if (typeof dimOrW === 'object' && dimOrW !== null) {
+            const dim = dimOrW;
+            const type = hOrType;
+            if (dim.isFraction) {
+                this.addFractionRectangle(cx, cy, dim.w, dim.h, dim.frac.target, dim.frac.numText, dim.frac.denText);
+                return;
+            }
+            if (type === 'output' && this.options.outputShape === 'document') {
+                this.addDocument(cx, cy, dim.w, dim.h, dim.lines);
+            } else if (type === 'input') {
+                this.addParallelogram(cx, cy, dim.w, dim.h, dim.lines);
+            } else {
+                this.addRectangle(cx, cy, dim.w, dim.h, dim.lines);
+            }
         } else {
-            this.addRectangle(cx, cy, w, h, text);
+            const w = dimOrW;
+            const h = hOrType;
+            const text = textOrEmpty;
+            const type = typeOrActNode;
+            if (type === 'output' && this.options.outputShape === 'document') {
+                this.addDocument(cx, cy, w, h, text);
+            } else if (type === 'input') {
+                this.addParallelogram(cx, cy, w, h, text);
+            } else {
+                this.addRectangle(cx, cy, w, h, text);
+            }
         }
     }
 
