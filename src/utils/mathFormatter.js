@@ -172,13 +172,11 @@ export function toMathExpression(str) {
     s = s.replace(/\bbeta\b/g, 'β');
     s = s.replace(/\bgamma\b/g, 'γ');
 
-    // 10. Relational and logical operators
+    // 10. Relational operators
     s = s.replace(/!=/g, '≠');
     s = s.replace(/<=/g, '≤');
     s = s.replace(/>=/g, '≥');
     s = s.replace(/==/g, '=');
-    s = s.replace(/&&/g, '∧');
-    s = s.replace(/\|\|/g, '∨');
 
     // 11. Multiplication sign * -> ·
     s = s.replace(/\*/g, '·');

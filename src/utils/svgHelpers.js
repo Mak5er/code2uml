@@ -3,6 +3,8 @@
  * Produces crisp, publication-quality vector diagrams matching academic standards.
  */
 
+const FONT_STACK = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'DejaVu Sans', 'Apple Symbols', sans-serif";
+
 const SVG = {
     createDefs() {
         return `
@@ -32,33 +34,63 @@ const SVG = {
         let remaining = raw;
 
         while (remaining.length > maxChars) {
-            const searchSub = remaining.slice(0, maxChars + 12);
+            const windowSize = Math.min(remaining.length, maxChars + 10);
+            const searchSub = remaining.slice(0, windowSize);
             let splitIdx = -1;
 
-            // 1. Logical operators: && or ||
-            const opMatch = searchSub.match(/^(.*?)(\s*(?:&&|\|\|)\s*)/);
-            if (opMatch && opMatch[1].length >= 6 && (opMatch[1].length + opMatch[2].length) <= maxChars + 12) {
-                splitIdx = opMatch[1].length + opMatch[2].length;
-            } else {
-                // 2. Space separator (natural word break)
-                const lastSpace = searchSub.slice(0, maxChars + 2).lastIndexOf(' ');
-                if (lastSpace >= Math.floor(maxChars * 0.45)) {
-                    splitIdx = lastSpace + 1;
-                } else {
-                    // 3. Comma or semicolon
-                    const scMatch = searchSub.match(/^(.*?[;,]\s*)/);
-                    if (scMatch && scMatch[1].length >= 6) {
-                        splitIdx = scMatch[1].length;
-                    } else {
-                        // 4. Binary or assignment operators
-                        const binMatch = searchSub.match(/^(.*?)([+\-*/=]\s*)/);
-                        if (binMatch && binMatch[1].length >= 6) {
-                            splitIdx = binMatch[1].length + binMatch[2].length;
-                        } else {
-                            splitIdx = maxChars;
-                        }
+            // 1. Prefer splitting at lowest precedence logical OR (|| or ∨)
+            const orMatches = [...searchSub.matchAll(/(\|\||∨)\s*/g)];
+            if (orMatches.length > 0) {
+                const last = orMatches[orMatches.length - 1];
+                if (last.index >= Math.floor(maxChars * 0.35) && (last.index + last[0].length) <= maxChars + 8) {
+                    splitIdx = last.index + last[0].length;
+                }
+            }
+
+            // 2. Next prefer splitting at logical AND (&& or ∧)
+            if (splitIdx === -1) {
+                const andMatches = [...searchSub.matchAll(/(&&|∧)\s*/g)];
+                if (andMatches.length > 0) {
+                    const last = andMatches[andMatches.length - 1];
+                    if (last.index >= Math.floor(maxChars * 0.35) && (last.index + last[0].length) <= maxChars + 8) {
+                        splitIdx = last.index + last[0].length;
                     }
                 }
+            }
+
+            // 3. Space separator (natural word break)
+            if (splitIdx === -1) {
+                const lastSpace = searchSub.slice(0, maxChars + 3).lastIndexOf(' ');
+                if (lastSpace >= Math.floor(maxChars * 0.4)) {
+                    splitIdx = lastSpace + 1;
+                }
+            }
+
+            // 4. Comma, semicolon, closing paren with operator
+            if (splitIdx === -1) {
+                const punctMatches = [...searchSub.matchAll(/([;,]|\)\s*(?:[+\-*/=]|\s))\s*/g)];
+                if (punctMatches.length > 0) {
+                    const last = punctMatches[punctMatches.length - 1];
+                    if (last.index >= Math.floor(maxChars * 0.4)) {
+                        splitIdx = last.index + last[0].length;
+                    }
+                }
+            }
+
+            // 5. Binary or assignment operators
+            if (splitIdx === -1) {
+                const binMatches = [...searchSub.matchAll(/([+\-*/=])\s*/g)];
+                if (binMatches.length > 0) {
+                    const last = binMatches[binMatches.length - 1];
+                    if (last.index >= Math.floor(maxChars * 0.4)) {
+                        splitIdx = last.index + last[0].length;
+                    }
+                }
+            }
+
+            // 6. Hard break fallback
+            if (splitIdx === -1 || splitIdx === 0) {
+                splitIdx = maxChars;
             }
 
             parts.push(remaining.slice(0, splitIdx).trim());
@@ -68,6 +100,7 @@ const SVG = {
         if (remaining.length > 0) {
             parts.push(remaining);
         }
+
         return parts;
     },
 
@@ -77,7 +110,7 @@ const SVG = {
         const lineHeight = options.lineHeight || 17;
         const textColor = options.textColor || '#0f172a';
         const weight = options.weight || '500';
-        const family = options.family || "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+        const family = options.family || FONT_STACK;
         const letterSpacing = options.letterSpacing ? ` letter-spacing="${options.letterSpacing}"` : '';
 
         if (!lines || lines.length <= 1) {
@@ -199,16 +232,16 @@ const SVG = {
         let contentSvg = '';
         if (leftText) {
             contentSvg += `<text x="${leftX}" y="${cy}" text-anchor="middle" dominant-baseline="central"
-                font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(leftText)}</text>`;
+                font-family="${FONT_STACK}" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(leftText)}</text>`;
         }
         contentSvg += `<text x="${fracCenterX}" y="${cy - 11}" text-anchor="middle" dominant-baseline="central"
-            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(numText)}</text>`;
+            font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(numText)}</text>`;
         contentSvg += `<line x1="${barX1}" y1="${cy}" x2="${barX2}" y2="${cy}" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" />`;
         contentSvg += `<text x="${fracCenterX}" y="${cy + 12}" text-anchor="middle" dominant-baseline="central"
-            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(denText)}</text>`;
+            font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(denText)}</text>`;
         if (suffix) {
             contentSvg += `<text x="${rightX}" y="${cy}" text-anchor="middle" dominant-baseline="central"
-                font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(suffix)}</text>`;
+                font-family="${FONT_STACK}" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(suffix)}</text>`;
         }
 
         const isUml = options.isUml;
@@ -349,15 +382,30 @@ const SVG = {
         return `<polyline points="${ptsStr}" fill="none" stroke="#1e293b" stroke-width="1.6" stroke-linejoin="miter" ${marker}/>`;
     },
 
-    // Text label (e.g. '+', '-', '[ x<0 ]')
+    // Text label (supports single-line and multiline arrays or \n)
     label(x, y, text, options = {}) {
         const anchor = options.anchor || 'middle';
         const color = options.color || '#0f172a';
         const weight = options.weight || 'bold';
         const size = options.size || 13;
-        return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="central"
-            fill="${color}" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-            font-size="${size}" font-weight="${weight}" user-select="none">${this.escapeXml(text)}</text>`;
+        const family = options.family || FONT_STACK;
+        const lines = Array.isArray(text) ? text : String(text || '').split('\n');
+
+        if (lines.length === 1) {
+            return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="central"
+                fill="${color}" font-family="${family}"
+                font-size="${size}" font-weight="${weight}" user-select="none">${this.escapeXml(lines[0])}</text>`;
+        }
+
+        const lineHeight = size * 1.35;
+        const startY = y - ((lines.length - 1) * lineHeight) / 2;
+        const tspans = lines.map((l, i) =>
+            `<tspan x="${x}" y="${startY + i * lineHeight}" dominant-baseline="central">${this.escapeXml(l)}</tspan>`
+        ).join('');
+
+        return `<text text-anchor="${anchor}" dominant-baseline="central"
+            fill="${color}" font-family="${family}"
+            font-size="${size}" font-weight="${weight}" user-select="none">${tspans}</text>`;
     },
 
     escapeXml(str) {

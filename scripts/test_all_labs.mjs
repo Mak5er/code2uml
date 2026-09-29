@@ -105,6 +105,37 @@ int main() {
 }`
     },
     {
+        id: 'lab3_4_variant23',
+        name: 'Lab 3.4 Variant 23 (Long condition with 2D area checks)',
+        code: `#include <iostream>
+using namespace std;
+
+int main()
+{
+    double x;
+    double y;
+    double R;
+
+    cout << "R = "; cin >> R;
+    cout << "x = "; cin >> x;
+    cout << "y = "; cin >> y;
+
+    if ((x >= 0 && x <= R && y >= 0 && y <= R) ||
+        (x >= -R && x <= 0 && y >= -R && y <= 0) ||
+        (x >= -R && x <= 0 && y >= 0 && y <= R && ((x + R) * (x + R) + (y - R) * (y - R) >= R * R)))
+    {
+        cout << "так" << endl;
+    }
+    else
+    {
+        cout << "ні" << endl;
+    }
+
+    cin.get();
+    return 0;
+}`
+    },
+    {
         id: 'lab5_1_variant0',
         name: 'Lab 5.1 Variant 0 (Functions: h function with fraction and main calling h)',
         code: `#include <iostream>
@@ -124,7 +155,8 @@ int main() {
 
     cout << "c = " << c << endl;
     return 0;
-}`
+}
+`
     }
 ];
 

@@ -339,13 +339,27 @@ class FlowchartRenderer {
 
     calcRhombusDimensions(conditionText) {
         const text = this.getConditionText(conditionText);
-        const lines = SVG.splitText(text, 34);
+        const lines = SVG.splitText(text, 40);
         const maxCondLen = Math.max(...lines.map(l => l.length));
-        let w = Math.max(130, maxCondLen * 10 + 52);
-        const h = Math.max(50, lines.length * 24 + 18);
-        if (lines.length > 1) {
-            w = Math.max(w, Math.round(h * 2.2));
+
+        if (lines.length <= 1) {
+            const w = Math.max(130, maxCondLen * 9.2 + 48);
+            const h = 50;
+            return { lines, w, h };
         }
+
+        const lineHeight = 18.5;
+        const h = Math.max(56, lines.length * 28 + 24);
+        let maxReqW = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const y = -(lines.length - 1) * lineHeight / 2.0 + i * lineHeight;
+            const wText = lines[i].length * 7.8 + 28;
+            const ratio = Math.max(0.2, 1.0 - (2.0 * Math.abs(y)) / h);
+            const reqW = wText / ratio;
+            if (reqW > maxReqW) maxReqW = reqW;
+        }
+
+        const w = Math.max(Math.round(maxReqW), Math.round(h * 1.8));
         return { lines, w, h };
     }
 

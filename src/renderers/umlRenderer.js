@@ -326,17 +326,46 @@ class UmlRenderer {
         return cond;
     }
 
+    formatGuard(conditionText, maxChars = 38) {
+        const raw = this.getConditionText(conditionText);
+        const full = `[ ${raw} ]`;
+        if (full.length <= maxChars) {
+            return {
+                lines: [full],
+                w: Math.max(45, full.length * 7.5),
+                h: 18
+            };
+        }
+        const innerLines = SVG.splitText(raw, maxChars - 4);
+        const lines = innerLines.map((l, idx) => {
+            if (idx === 0 && innerLines.length === 1) return `[ ${l} ]`;
+            if (idx === 0) return `[ ${l}`;
+            if (idx === innerLines.length - 1) return `  ${l} ]`;
+            return `  ${l}`;
+        });
+        const maxLen = Math.max(...lines.map(l => l.length));
+        return {
+            lines: lines,
+            w: Math.max(60, maxLen * 7.5),
+            h: lines.length * 15.5
+        };
+    }
+
     // 1. Short if (без else, Слайд 4 і Слайд 7 спосіб 1)
     renderShortIf(stmt) {
         const dSize = this.options.diamondSize;
+        const guard = this.formatGuard(stmt.condition, 36);
+
+        // Clearance above decision diamond if guard is multiline
+        const extraTop = guard.lines.length > 1 ? Math.max(0, guard.h - 18) : 0;
+        if (extraTop > 0) {
+            const extendedY = this.currentY + extraTop;
+            this.addLine(this.centerX, this.currentY, this.centerX, extendedY, true, 'arrow-uml');
+            this.currentY = extendedY;
+        }
+
         const decY = this.currentY + dSize / 2;
-
-        // Decision diamond
         this.addDiamond(this.centerX, decY, dSize);
-
-        // Guard text
-        const guardText = `[ ${this.getConditionText(stmt.condition)} ]`;
-        const guardLen = Math.max(50, guardText.length * 8.0);
 
         const act = stmt.thenBranch && stmt.thenBranch[0];
         const dim = this.calcActionDimensions(act, act?.type === 'output' || act?.type === 'input');
@@ -344,12 +373,13 @@ class UmlRenderer {
         const actH = dim.h;
 
         // Dynamic right column: guarantees guard label never collides with action box
-        const minGap = Math.max(90, guardLen + 24);
+        const minGap = Math.max(90, guard.w + 24);
         const rightColX = Math.max(this.centerX + 195, this.centerX + dSize / 2 + minGap + actW / 2);
 
         // Guard label placed above line
         const labelX = this.centerX + dSize / 2 + 8;
-        this.addLabel(labelX, decY - 11, guardText, { anchor: 'start', size: 12, weight: 'normal' });
+        const labelY = guard.lines.length > 1 ? decY - guard.h / 2 - 6 : decY - 11;
+        this.addLabel(labelX, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
 
         // Arrow from decision diamond right vertex to action box left edge
         this.addLine(this.centerX + dSize / 2, decY, rightColX - actW / 2, decY, true, 'arrow-uml');
@@ -363,6 +393,7 @@ class UmlRenderer {
 
         // Straight arrow down from decision diamond into merge diamond
         this.addLine(this.centerX, decY + dSize / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
+        this.addLabel(this.centerX + 14, decY + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
 
         // From action box bottom: drop down to merge level, then left with arrow into merge diamond
         const actionBottomY = decY + actH / 2;
@@ -381,23 +412,31 @@ class UmlRenderer {
     // 2. Full if (з else, Слайд 5)
     renderFullIf(stmt) {
         const dSize = this.options.diamondSize;
+        const guard = this.formatGuard(stmt.condition, 36);
+
+        // Clearance above decision diamond if guard is multiline
+        const extraTop = guard.lines.length > 1 ? Math.max(0, guard.h - 18) : 0;
+        if (extraTop > 0) {
+            const extendedY = this.currentY + extraTop;
+            this.addLine(this.centerX, this.currentY, this.centerX, extendedY, true, 'arrow-uml');
+            this.currentY = extendedY;
+        }
+
         const decY = this.currentY + dSize / 2;
-
         this.addDiamond(this.centerX, decY, dSize);
-
-        const guardText = `[ ${this.getConditionText(stmt.condition)} ]`;
-        const guardLen = Math.max(50, guardText.length * 8.0);
 
         const thenAct = stmt.thenBranch && stmt.thenBranch[0];
         const thenDim = this.calcActionDimensions(thenAct, thenAct?.type === 'output' || thenAct?.type === 'input');
         const thenW = thenDim.w;
         const thenH = thenDim.h;
 
-        const minGap = Math.max(90, guardLen + 24);
+        const minGap = Math.max(90, guard.w + 24);
         const rightColX = Math.max(this.centerX + 195, this.centerX + dSize / 2 + minGap + thenW / 2);
 
         // Label for then-branch
-        this.addLabel(this.centerX + dSize / 2 + 8, decY - 11, guardText, { anchor: 'start', size: 12, weight: 'normal' });
+        const labelX = this.centerX + dSize / 2 + 8;
+        const labelY = guard.lines.length > 1 ? decY - guard.h / 2 - 6 : decY - 11;
+        this.addLabel(labelX, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
 
         // Arrow to right action
         this.addLine(this.centerX + dSize / 2, decY, rightColX - thenW / 2, decY, true, 'arrow-uml');
@@ -408,9 +447,10 @@ class UmlRenderer {
         const elseDim = this.calcActionDimensions(elseAct, elseAct?.type === 'output' || elseAct?.type === 'input');
         const elseW = elseDim.w;
         const elseH = elseDim.h;
-        const elseActionCy = decY + Math.max(48, elseH / 2 + 20);
+        const elseActionCy = decY + Math.max(52, elseH / 2 + 22);
 
         this.addLine(this.centerX, decY + dSize / 2, this.centerX, elseActionCy - elseH / 2, true, 'arrow-uml');
+        this.addLabel(this.centerX + 14, decY + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
         this.renderActionNode(this.centerX, elseActionCy, elseDim, { isIO: elseAct?.type === 'output' || elseAct?.type === 'input' });
 
         // Merge diamond below else action
@@ -442,9 +482,18 @@ class UmlRenderer {
             const cond1 = chain.conditions[0];
             const cond2 = chain.conditions[1];
 
-            const dec1Y = this.currentY + dSize / 2;
+            const guard1 = this.formatGuard(cond1.condition, 36);
+            const guard2 = this.formatGuard(cond2.condition, 36);
 
             // First decision diamond [ x<0 ]
+            const extraTop1 = guard1.lines.length > 1 ? Math.max(0, guard1.h - 18) : 0;
+            if (extraTop1 > 0) {
+                const extY = this.currentY + extraTop1;
+                this.addLine(this.centerX, this.currentY, this.centerX, extY, true, 'arrow-uml');
+                this.currentY = extY;
+            }
+
+            const dec1Y = this.currentY + dSize / 2;
             this.addDiamond(this.centerX, dec1Y, dSize);
 
             // Right action 1 (B = вираз_1)
@@ -453,34 +502,31 @@ class UmlRenderer {
             const act1W = dim1.w;
             const act1H = dim1.h;
 
-            const guard1Text = `[ ${cond1.condition} ]`;
-            const guard1Len = Math.max(50, guard1Text.length * 8.0);
-
             // Second condition
             const act3 = cond2.thenBranch[0];
             const dim3 = this.calcActionDimensions(act3, act3?.type === 'output' || act3?.type === 'input');
             const act3W = dim3.w;
             const act3H = dim3.h;
 
-            const guard2Text = `[ ${cond2.condition} ]`;
-            const guard2Len = Math.max(50, guard2Text.length * 8.0);
-
-            const maxGuardLen = Math.max(guard1Len, guard2Len);
+            const maxGuardW = Math.max(guard1.w, guard2.w);
             const maxActW = Math.max(act1W, act3W);
-            const minGap = Math.max(90, maxGuardLen + 24);
+            const minGap = Math.max(90, maxGuardW + 24);
             const rightColX = Math.max(this.centerX + 195, this.centerX + dSize / 2 + minGap + maxActW / 2);
 
-            this.addLabel(this.centerX + dSize / 2 + 8, dec1Y - 11, guard1Text, { anchor: 'start', size: 12, weight: 'normal' });
+            const label1Y = guard1.lines.length > 1 ? dec1Y - guard1.h / 2 - 6 : dec1Y - 11;
+            this.addLabel(this.centerX + dSize / 2 + 8, label1Y, guard1.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
             this.addLine(this.centerX + dSize / 2, dec1Y, rightColX - act1W / 2, dec1Y, true, 'arrow-uml');
             this.renderActionNode(rightColX, dec1Y, dim1, { isIO: act1?.type === 'output' || act1?.type === 'input' });
 
             // Down arrow to second decision diamond [ x>1 ]
-            const dec2Y = dec1Y + Math.max(48, act1H / 2 + 20);
+            const extraTop2 = guard2.lines.length > 1 ? Math.max(0, guard2.h - 18) : 0;
+            const dec2Y = dec1Y + Math.max(48, act1H / 2 + 20) + extraTop2;
             this.addLine(this.centerX, dec1Y + dSize / 2, this.centerX, dec2Y - dSize / 2, true, 'arrow-uml');
             this.addDiamond(this.centerX, dec2Y, dSize);
 
             // Right action 3 (B = вираз_3)
-            this.addLabel(this.centerX + dSize / 2 + 8, dec2Y - 11, guard2Text, { anchor: 'start', size: 12, weight: 'normal' });
+            const label2Y = guard2.lines.length > 1 ? dec2Y - guard2.h / 2 - 6 : dec2Y - 11;
+            this.addLabel(this.centerX + dSize / 2 + 8, label2Y, guard2.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
             this.addLine(this.centerX + dSize / 2, dec2Y, rightColX - act3W / 2, dec2Y, true, 'arrow-uml');
             this.renderActionNode(rightColX, dec2Y, dim3, { isIO: act3?.type === 'output' || act3?.type === 'input' });
 
@@ -533,12 +579,10 @@ class UmlRenderer {
         const allThenDims = chain.conditions.flatMap(c => (c.thenBranch || []).map(act => this.calcActionDimensions(act, act.type === 'output' || act.type === 'input')));
         const maxThenW = Math.max(120, ...allThenDims.map(d => d.w));
 
-        const maxGuardLen = Math.max(...chain.conditions.map(c => {
-            const gText = `[ ${this.getConditionText(c.condition)} ]`;
-            return Math.max(50, gText.length * 8.0);
-        }));
+        const guards = chain.conditions.map(c => this.formatGuard(c.condition, 36));
+        const maxGuardW = Math.max(...guards.map(g => g.w));
 
-        const minGap = Math.max(90, maxGuardLen + 24);
+        const minGap = Math.max(90, maxGuardW + 24);
         const rightColX = Math.max(this.centerX + 200, this.centerX + dSize / 2 + minGap + maxThenW / 2);
         const busRightX = rightColX + maxThenW / 2 + 25;
 
@@ -547,10 +591,12 @@ class UmlRenderer {
 
         for (let i = 0; i < numConds; i++) {
             const condItem = chain.conditions[i];
+            const guard = guards[i];
+
             this.addDiamond(this.centerX, curDecY, dSize);
 
-            const guardText = `[ ${this.getConditionText(condItem.condition)} ]`;
-            this.addLabel(this.centerX + dSize / 2 + 8, curDecY - 11, guardText, { anchor: 'start', size: 12, weight: 'normal' });
+            const labelY = guard.lines.length > 1 ? curDecY - guard.h / 2 - 6 : curDecY - 11;
+            this.addLabel(this.centerX + dSize / 2 + 8, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
 
             let actCy = curDecY;
             let actBottomY = curDecY;
@@ -567,7 +613,9 @@ class UmlRenderer {
             this.addLine(rightColX, actBottomY, busRightX, actBottomY);
 
             if (i < numConds - 1) {
-                const nextDecY = Math.max(curDecY + 48, actBottomY + 20);
+                const nextGuard = guards[i + 1];
+                const extraNext = nextGuard.lines.length > 1 ? Math.max(0, nextGuard.h - 18) : 0;
+                const nextDecY = Math.max(curDecY + 48 + extraNext, actBottomY + 20);
                 this.addLine(this.centerX, curDecY + dSize / 2, this.centerX, nextDecY - dSize / 2, true, 'arrow-uml');
                 curDecY = nextDecY;
             } else {
@@ -611,14 +659,16 @@ class UmlRenderer {
         const mergeCy = this.currentY + dSize / 2;
         this.addDiamond(this.centerX, mergeCy, dSize);
 
+        const guard = this.formatGuard(stmt.condition, 36);
+
         const decCy = mergeCy + 36;
         this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, decCy - dSize / 2, true, 'arrow-uml');
         this.addDiamond(this.centerX, decCy, dSize);
 
-        const guardText = `[ ${this.getConditionText(stmt.condition)} ]`;
-        this.addLabel(this.centerX + 14, decCy + dSize / 2 + 14, guardText, { anchor: 'start', size: 12, weight: 'normal' });
+        const labelY = guard.lines.length > 1 ? decCy + dSize / 2 + guard.h / 2 + 6 : decCy + dSize / 2 + 14;
+        this.addLabel(this.centerX + 14, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
 
-        const bodyStartY = decCy + dSize / 2 + 28;
+        const bodyStartY = decCy + dSize / 2 + Math.max(28, guard.h + 12);
         this.addLine(this.centerX, decCy + dSize / 2, this.centerX, bodyStartY, true, 'arrow-uml');
         this.currentY = bodyStartY;
 
@@ -664,14 +714,16 @@ class UmlRenderer {
         const mergeCy = this.currentY + dSize / 2;
         this.addDiamond(this.centerX, mergeCy, dSize);
 
+        const guard = this.formatGuard(stmt.condition, 36);
+
         const decCy = mergeCy + 36;
         this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, decCy - dSize / 2, true, 'arrow-uml');
         this.addDiamond(this.centerX, decCy, dSize);
 
-        const guardText = `[ ${this.getConditionText(stmt.condition)} ]`;
-        this.addLabel(this.centerX + 14, decCy + dSize / 2 + 14, guardText, { anchor: 'start', size: 12, weight: 'normal' });
+        const labelY = guard.lines.length > 1 ? decCy + dSize / 2 + guard.h / 2 + 6 : decCy + dSize / 2 + 14;
+        this.addLabel(this.centerX + 14, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
 
-        const bodyStartY = decCy + dSize / 2 + 28;
+        const bodyStartY = decCy + dSize / 2 + Math.max(28, guard.h + 12);
         this.addLine(this.centerX, decCy + dSize / 2, this.centerX, bodyStartY, true, 'arrow-uml');
         this.currentY = bodyStartY;
 
@@ -728,8 +780,9 @@ class UmlRenderer {
         const decCy = this.currentY + dSize / 2;
         this.addDiamond(this.centerX, decCy, dSize);
 
-        const guardText = `[ ${this.getConditionText(stmt.condition)} ]`;
-        this.addLabel(this.centerX + dSize / 2 + 8, decCy - 11, guardText, { anchor: 'start', size: 12, weight: 'normal' });
+        const guard = this.formatGuard(stmt.condition, 36);
+        const labelY = guard.lines.length > 1 ? decCy - guard.h / 2 - 6 : decCy - 11;
+        this.addLabel(this.centerX + dSize / 2 + 8, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
         const loopRightX = Math.max(this.bounds.maxX, this.centerX + 60) + 30;
 
         // Loop back arrow
