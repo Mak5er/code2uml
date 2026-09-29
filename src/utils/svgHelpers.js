@@ -177,31 +177,42 @@ const SVG = {
         const fillColor = options.fill || '#ffffff';
         const textColor = options.textColor || '#0f172a';
 
-        const charW = 8.5;
-        const prefix = target ? `${target} = ` : '';
-        const prefixW = prefix.length * charW;
-        const numW = numText.length * charW;
-        const denW = denText.length * charW;
-        const barW = Math.max(numW, denW) + 20;
-        const totalW = prefixW + barW;
+        const charW = 8.2;
+        const prefix = options.prefix || '';
+        const suffix = options.suffix || '';
+        const leftText = target ? `${target} = ${prefix}` : prefix;
+        const leftW = leftText ? leftText.length * charW : 0;
+        const rightW = suffix ? suffix.length * charW : 0;
+        const numW = numText.length * 8.0;
+        const denW = denText.length * 8.0;
+        const barW = Math.max(numW, denW) + 16;
+        const totalW = leftW + (leftW > 0 ? 6 : 0) + barW + (rightW > 0 ? 6 : 0) + rightW;
 
         const startX = cx - totalW / 2;
-        const prefixX = startX + prefixW / 2;
-        const fracX = startX + prefixW + barW / 2;
-        const barX1 = fracX - barW / 2;
-        const barX2 = fracX + barW / 2;
+        const leftX = startX + leftW / 2;
+        const fracCenterX = startX + leftW + (leftW > 0 ? 6 : 0) + barW / 2;
+        const barX1 = fracCenterX - barW / 2;
+        const barX2 = fracCenterX + barW / 2;
+        const rightX = fracCenterX + barW / 2 + (rightW > 0 ? 6 : 0) + rightW / 2;
 
         let contentSvg = '';
-        if (prefix) {
-            contentSvg += `<text x="${prefixX}" y="${cy + 4.5}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13.5" font-weight="500" fill="${textColor}">${prefix}</text>`;
+        if (leftText) {
+            contentSvg += `<text x="${leftX}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+                font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(leftText)}</text>`;
         }
-        contentSvg += `<text x="${fracX}" y="${cy - 7}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12.5" font-weight="500" fill="${textColor}">${numText}</text>`;
+        contentSvg += `<text x="${fracCenterX}" y="${cy - 11}" text-anchor="middle" dominant-baseline="central"
+            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(numText)}</text>`;
         contentSvg += `<line x1="${barX1}" y1="${cy}" x2="${barX2}" y2="${cy}" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" />`;
-        contentSvg += `<text x="${fracX}" y="${cy + 15}" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12.5" font-weight="500" fill="${textColor}">${denText}</text>`;
+        contentSvg += `<text x="${fracCenterX}" y="${cy + 12}" text-anchor="middle" dominant-baseline="central"
+            font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(denText)}</text>`;
+        if (suffix) {
+            contentSvg += `<text x="${rightX}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+                font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(suffix)}</text>`;
+        }
 
         const isUml = options.isUml;
-        const rx = isUml ? 10 : 0;
-        const ry = isUml ? 10 : 0;
+        const rx = isUml ? 15 : 0;
+        const ry = isUml ? 15 : 0;
 
         return `
         <g class="diagram-node process-node fraction-node">

@@ -229,20 +229,21 @@ class FlowchartRenderer {
 
     checkFraction(stmt) {
         if (!stmt) return null;
-        let expr = stmt.expr;
-        let target = stmt.target || '';
-        if (!expr && stmt.text && stmt.text.includes('=')) {
-            const parts = stmt.text.split('=');
-            target = parts[0].trim();
-            expr = parts.slice(1).join('=').trim();
+        let frac = parseFraction(stmt.text || stmt.raw || '');
+        if (!frac || !frac.isFraction) {
+            if (stmt.expr) {
+                frac = parseFraction(stmt.expr);
+            }
         }
-        if (!expr) return null;
-        const frac = parseFraction(expr);
-        if (frac.isFraction) {
+        if (frac && frac.isFraction) {
+            let target = frac.target || stmt.target || '';
+            target = target.replace(/^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/, '').trim();
             return {
                 target: target,
+                prefix: frac.prefix || '',
                 numText: toMathExpression(frac.numerator),
-                denText: toMathExpression(frac.denominator)
+                denText: toMathExpression(frac.denominator),
+                suffix: frac.suffix || ''
             };
         }
         return null;
@@ -253,19 +254,20 @@ class FlowchartRenderer {
             if (this.options.expressionMode === 'math' && actOrText.type === 'process') {
                 const frac = this.checkFraction(actOrText);
                 if (frac) {
-                    const charW = 8.5;
-                    const prefix = frac.target ? `${frac.target} = ` : '';
-                    const prefixW = prefix.length * charW;
-                    const numW = frac.numText.length * charW;
-                    const denW = frac.denText.length * charW;
-                    const barW = Math.max(numW, denW) + 20;
-                    const totalW = prefixW + barW;
+                    const charW = 8.2;
+                    const leftPart = frac.target ? `${frac.target} = ${frac.prefix}` : frac.prefix;
+                    const leftW = leftPart ? leftPart.length * charW : 0;
+                    const rightW = frac.suffix ? frac.suffix.length * charW : 0;
+                    const numW = frac.numText.length * 8.0;
+                    const denW = frac.denText.length * 8.0;
+                    const barW = Math.max(numW, denW) + 16;
+                    const totalW = leftW + (leftW > 0 ? 6 : 0) + barW + (rightW > 0 ? 6 : 0) + rightW;
                     return {
                         isFraction: true,
                         frac,
                         lines: [],
-                        w: Math.max(136, totalW + 28),
-                        h: 56
+                        w: Math.max(136, Math.ceil(totalW + 36)),
+                        h: 58
                     };
                 }
             }
@@ -855,7 +857,10 @@ class FlowchartRenderer {
             const dim = dimOrW;
             const type = hOrType;
             if (dim.isFraction) {
-                this.addFractionRectangle(cx, cy, dim.w, dim.h, dim.frac.target, dim.frac.numText, dim.frac.denText);
+                this.addFractionRectangle(cx, cy, dim.w, dim.h, dim.frac.target, dim.frac.numText, dim.frac.denText, {
+                    prefix: dim.frac.prefix,
+                    suffix: dim.frac.suffix
+                });
                 return;
             }
             if (type === 'output' && this.options.outputShape === 'document') {
