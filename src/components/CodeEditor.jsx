@@ -82,9 +82,7 @@ export default function CodeEditor({
                     <span className="supported-text">Підтримує: cin, cout, if-else, switch, while, for, do-while, функції</span>
                 </div>
                 <div className="panel-credits">
-                    <span>Розробив <a href={LINKS.GITHUB_PROFILE} target="_blank" rel="noopener noreferrer">Mak5er</a></span>
-                    <span className="credits-dot">•</span>
-                    <a href={LINKS.GITHUB_REPO} target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <span>Розробив <a href={LINKS.AUTHOR_WEBSITE} target="_blank" rel="noopener noreferrer">Mak5er</a></span>
                     <span className="credits-dot">•</span>
                     <a href={LINKS.MONOBANK_JAR} target="_blank" rel="noopener noreferrer" className="credits-donate">
                         <Heart size={11} fill="currentColor" /> Донат на mono

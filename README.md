@@ -73,4 +73,4 @@ src/
 
 ## 👤 Автор
 
-- **Mak5er** — [GitHub](https://github.com/Mak5er) • [Репозиторій проекту](https://github.com/Mak5er/code2uml)
+- **Mak5er** — [mak5er.com](https://mak5er.com) • [GitHub](https://github.com/Mak5er) • [Репозиторій проекту](https://github.com/Mak5er/code2uml)
