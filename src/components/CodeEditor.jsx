@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { Code2 } from 'lucide-react';
+import { Code2, Heart } from 'lucide-react';
+import { LINKS } from '../constants/links.js';
 
 export default function CodeEditor({
     code,
@@ -76,8 +77,19 @@ export default function CodeEditor({
             </div>
 
             <div className="panel-footer">
-                <span className="code-status-text">{status}</span>
-                <span className="supported-text">Підтримує: cin, cout, if-else, while, for, do-while</span>
+                <div className="panel-footer-info">
+                    <span className="code-status-text">{status}</span>
+                    <span className="supported-text">Підтримує: cin, cout, if-else, switch, while, for, do-while, функції</span>
+                </div>
+                <div className="panel-credits">
+                    <span>Розробив <a href={LINKS.GITHUB_PROFILE} target="_blank" rel="noopener noreferrer">Mak5er</a></span>
+                    <span className="credits-dot">•</span>
+                    <a href={LINKS.GITHUB_REPO} target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <span className="credits-dot">•</span>
+                    <a href={LINKS.MONOBANK_JAR} target="_blank" rel="noopener noreferrer" className="credits-donate">
+                        <Heart size={11} fill="currentColor" /> Донат на mono
+                    </a>
+                </div>
             </div>
         </section>
     );
