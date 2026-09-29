@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Zap, Download, ChevronDown, FileCode, Image as ImageIcon, Copy, Moon, Sun } from 'lucide-react';
+import { Zap, Download, FileCode, Image as ImageIcon, Moon, Sun } from 'lucide-react';
 
 export default function Header({
     onGenerate,
     onExportSvg,
     onExportPng,
-    onCopySvg,
     isDark,
     onToggleTheme,
     activeTab
@@ -49,21 +48,16 @@ export default function Header({
 
                 <div className="divider-v" />
 
-                {/* Single Download button with Dropdown (SVG or PNG) */}
+                {/* Icon-only Download button with Dropdown menu (SVG or PNG) */}
                 <div className="download-dropdown" ref={dropdownRef}>
                     <button
-                        className="btn btn-outline"
+                        className="btn btn-outline btn-icon"
                         onClick={() => setDownloadOpen((prev) => !prev)}
                         title="Завантажити діаграми (вибір SVG або PNG)"
                         aria-expanded={downloadOpen}
+                        aria-label="Завантажити діаграми"
                     >
-                        <Download size={14} strokeWidth={2} />
-                        <span>Завантажити</span>
-                        <ChevronDown
-                            size={12}
-                            strokeWidth={2}
-                            className={`chevron-icon ${downloadOpen ? 'open' : ''}`}
-                        />
+                        <Download size={16} strokeWidth={2} />
                     </button>
 
                     {downloadOpen && (
@@ -114,17 +108,6 @@ export default function Header({
                         </div>
                     )}
                 </div>
-
-                <button
-                    className="btn btn-outline"
-                    onClick={onCopySvg}
-                    title="Скопіювати SVG у буфер обміну"
-                >
-                    <Copy size={14} strokeWidth={2} />
-                    <span>Копіювати</span>
-                </button>
-
-                <div className="divider-v" />
 
                 {/* Pure icon theme button reflecting current theme */}
                 <button

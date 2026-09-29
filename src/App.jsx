@@ -7,7 +7,7 @@ import { DEFAULT_CODE } from './constants/defaultCode';
 import { parseCppCode } from './parser/cppParser';
 import { FlowchartRenderer } from './renderers/flowchartRenderer';
 import { UmlRenderer } from './renderers/umlRenderer';
-import { exportSvg, exportPng, copySvgToClipboard } from './utils/exportUtils';
+import { exportSvg, exportPng } from './utils/exportUtils';
 import './App.css';
 
 function compileCode(sourceCode) {
@@ -211,20 +211,6 @@ export default function App() {
         }
     };
 
-    const handleCopySvg = async () => {
-        const svgEl = getActiveSvgElement();
-        if (!svgEl) {
-            showToast('Спочатку згенеруйте діаграму');
-            return;
-        }
-        try {
-            await copySvgToClipboard(svgEl);
-            showToast('✓ SVG скопійовано в буфер обміну!');
-        } catch {
-            showToast('Не вдалося скопіювати в буфер');
-        }
-    };
-
     const handleDownloadCardSvg = (svgEl, name) => {
         if (!svgEl) return;
         exportSvg(svgEl, `${name}.svg`);
@@ -247,7 +233,6 @@ export default function App() {
                 onGenerate={() => generateDiagrams(code, false)}
                 onExportSvg={handleExportSvg}
                 onExportPng={handleExportPng}
-                onCopySvg={handleCopySvg}
                 isDark={isDark}
                 onToggleTheme={toggleTheme}
                 activeTab={activeTab}
