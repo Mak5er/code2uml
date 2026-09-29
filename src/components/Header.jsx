@@ -38,7 +38,10 @@ export default function Header({
         <header className="app-header">
             <div className="brand">
                 <div className="brand-icon">C++</div>
-                <h1>Генератор блок-схем та UML</h1>
+                <div className="brand-titles">
+                    <h1>Code2UML</h1>
+                    <span className="brand-subtitle">Генератор схем та UML</span>
+                </div>
             </div>
 
             <div className="header-controls">

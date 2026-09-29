@@ -1,7 +1,8 @@
 {
-  "name": "cpp-diagram-generator",
+  "name": "code2uml",
+  "description": "Генератор блок-схем та UML діаграм діяльності з C++",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
