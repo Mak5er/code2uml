@@ -1,831 +1,688 @@
 /**
  * UML Activity Diagram Generator (UML 2.x Діаграма діяльності)
- * Replicates the exact format and layout from Ukrainian university lectures (Slide 7 right side).
+ * Strictly conforms to canonical UML 2.x and academic rules (matching uml.pp.ua),
+ * using the project's native typography, math expressions, and fraction formatting.
  */
 
-import { SVG, BoundingBox } from '../utils/svgHelpers.js';
-import { toMathExpression, parseFraction } from '../utils/mathFormatter.js';
+import { SVG, BoundingBox } from "../utils/svgHelpers.js";
+import { toMathExpression, parseFraction } from "../utils/mathFormatter.js";
 
 class UmlRenderer {
-    constructor(ast, options = {}) {
-        this.ast = ast;
-        this.options = Object.assign({
-            expressionStyle: 'original', // 'original' (реальний код) or 'lecture' (вираз_1)
-            expressionMode: 'cpp',       // 'cpp' (C++ код) or 'math' (математичні формули)
-            showDeclarations: false,
-            centerX: 340,
-            startY: 45,
-            nodeGap: 28,
-            diamondSize: 20
-        }, options);
+  constructor(ast, options = {}) {
+    this.ast = ast;
+    this.options = Object.assign(
+      {
+        expressionStyle: "original", // 'original' (реальний код) or 'lecture' (вираз_1)
+        expressionMode: "cpp", // 'cpp' (C++) or 'math' (математичні формули)
+        showDeclarations: false,
+        nodeGap: 26,
+        diamondSize: 26,
+        mergeDiamondSize: 14,
+      },
+      options
+    );
 
-        this.elements = [];
-        this.bounds = new BoundingBox();
-        this.currentY = this.options.startY;
-        this.centerX = this.options.centerX;
+    this.elements = [];
+    this.bounds = new BoundingBox();
+  }
+
+  getNodeText(node) {
+    if (!node) return "";
+    if (this.options.expressionStyle === "lecture" && node.simplifiedText) {
+      return node.simplifiedText;
     }
-
-    // Helper wrappers that push SVG strings AND track bounds
-    addInitialNode(cx, cy, r) {
-        this.bounds.addCircle(cx, cy, r);
-        this.elements.push(SVG.umlInitialNode(cx, cy, r));
+    let txt = "";
+    if (node.type === "output") {
+      txt = node.umlText || `вивід ${node.text || "y"}`;
+    } else if (node.type === "input") {
+      txt = node.umlText || `ввід ${node.text || "x"}`;
+    } else {
+      txt = node.text || node.fullText || (node.raw ? node.raw.replace(/;$/, "") : "");
     }
-
-    addFinalNode(cx, cy, r) {
-        this.bounds.addCircle(cx, cy, r);
-        this.elements.push(SVG.umlFinalNode(cx, cy, r));
+    if (this.options.expressionMode === "math") {
+      return toMathExpression(txt);
     }
+    return txt;
+  }
 
-    addAction(cx, cy, w, h, text, opts = {}) {
-        this.bounds.addRect(cx - w / 2, cy - h / 2, w, h);
-        this.elements.push(SVG.umlAction(cx, cy, w, h, text, opts));
+  getConditionText(cond) {
+    if (!cond) return "";
+    if (this.options.expressionMode === "math") {
+      return toMathExpression(cond);
     }
+    return cond;
+  }
 
-    addFractionAction(cx, cy, w, h, target, numText, denText, opts = {}) {
-        this.bounds.addRect(cx - w / 2, cy - h / 2, w, h);
-        this.elements.push(SVG.fractionRectangle(cx, cy, w, h, target, numText, denText, { ...opts, isUml: true }));
+  formatGuard(condText) {
+    const raw = this.getConditionText(condText);
+    return `[ ${raw} ]`;
+  }
+
+  checkFraction(stmt) {
+    if (!stmt) return null;
+    let frac = parseFraction(stmt.text || stmt.raw || "");
+    if (!frac || !frac.isFraction) {
+      if (stmt.expr) frac = parseFraction(stmt.expr);
     }
-
-    addDiamond(cx, cy, size) {
-        const hs = size / 2;
-        this.bounds.addRect(cx - hs, cy - hs, size, size);
-        this.elements.push(SVG.umlDiamond(cx, cy, size));
+    if (frac && frac.isFraction) {
+      let target = frac.target || stmt.target || "";
+      target = target
+        .replace(
+          /^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/,
+          ""
+        )
+        .trim();
+      return {
+        target: target,
+        prefix: toMathExpression(frac.prefix || ""),
+        numText: toMathExpression(frac.numerator),
+        denText: toMathExpression(frac.denominator),
+        suffix: toMathExpression(frac.suffix || ""),
+      };
     }
+    return null;
+  }
 
-    addLine(x1, y1, x2, y2, hasArrow = true, markerType = 'arrow-uml') {
-        this.bounds.addPoint(x1, y1);
-        this.bounds.addPoint(x2, y2);
-        this.elements.push(SVG.line(x1, y1, x2, y2, hasArrow, markerType));
-    }
-
-    addPolyline(points, hasArrow = true, markerType = 'arrow-uml') {
-        points.forEach(([px, py]) => this.bounds.addPoint(px, py));
-        this.elements.push(SVG.polyline(points, hasArrow, markerType));
-    }
-
-    addLabel(x, y, text, opts = {}) {
-        this.bounds.addText(x, y, text, opts);
-        this.elements.push(SVG.label(x, y, text, opts));
-    }
-
-    render() {
-        this.elements = [];
-        this.bounds = new BoundingBox();
-        this.currentY = this.options.startY;
-
-        // Initial node (solid circle)
-        this.renderInitialNode();
-
-        // Process statements
-        for (let i = 0; i < this.ast.length; i++) {
-            const stmt = this.ast[i];
-            if (stmt.type === 'return' && stmt.isMainZero && i === this.ast.length - 1) {
-                continue;
-            }
-            this.renderStatement(stmt);
+  calcActionDimensions(node, isIO = false, maxChars = 32) {
+    if (typeof node === "object" && node !== null) {
+      if (
+        this.options.expressionMode === "math" &&
+        (node.type === "process" || node.type === "return")
+      ) {
+        const frac = this.checkFraction(node);
+        if (frac) {
+          const charW = 8.2;
+          const leftPart = frac.target ? `${frac.target} = ${frac.prefix}` : frac.prefix;
+          const leftW = leftPart ? leftPart.length * charW : 0;
+          const rightW = frac.suffix ? frac.suffix.length * charW : 0;
+          const numW = frac.numText.length * 8.0;
+          const denW = frac.denText.length * 8.0;
+          const barW = Math.max(numW, denW) + 16;
+          const totalW = leftW + (leftW > 0 ? 6 : 0) + barW + (rightW > 0 ? 6 : 0) + rightW;
+          return {
+            isFraction: true,
+            frac,
+            lines: [],
+            w: Math.max(isIO ? 100 : 124, Math.ceil(totalW + 36)),
+            h: 58,
+          };
         }
+      }
+    }
+    const text = this.getNodeText(node);
+    const lines = SVG.splitText(text, maxChars);
+    const maxL = Math.max(...lines.map((l) => l.length), 0);
+    const w = Math.max(isIO ? 100 : 120, maxL * 8.5 + 28);
+    const h = Math.max(34, lines.length * 18 + 14);
+    return { isFraction: false, lines, w, h };
+  }
 
-        // Final node (bullseye)
-        this.renderFinalNode();
+  layoutPrimitive(node, type) {
+    if (type === "start") {
+      const r = 11;
+      return {
+        w: r * 2,
+        h: r * 2,
+        cx: r,
+        render: (x, y) => {
+          this.bounds.addCircle(x + r, y + r, r);
+          this.elements.push(SVG.umlInitialNode(x + r, y + r, r));
+        },
+      };
+    }
+    if (type === "end") {
+      const r = 13;
+      return {
+        w: r * 2,
+        h: r * 2,
+        cx: r,
+        render: (x, y) => {
+          this.bounds.addCircle(x + r, y + r, r);
+          this.elements.push(SVG.umlFinalNode(x + r, y + r, r));
+        },
+      };
+    }
 
-        // Dynamic and robust viewBox based on actual content
-        const vb = this.bounds.getViewBox(55, 45);
+    const isIO = type === "input" || type === "output";
+    const dim = this.calcActionDimensions(node, isIO);
+    return {
+      w: dim.w,
+      h: dim.h,
+      cx: dim.w / 2,
+      render: (x, y) => {
+        const cx = x + dim.w / 2;
+        const cy = y + dim.h / 2;
+        this.bounds.addRect(x, y, dim.w, dim.h);
+        if (dim.isFraction) {
+          this.elements.push(
+            SVG.fractionRectangle(
+              cx,
+              cy,
+              dim.w,
+              dim.h,
+              dim.frac.target,
+              dim.frac.numText,
+              dim.frac.denText,
+              {
+                isUml: true,
+                prefix: dim.frac.prefix,
+                suffix: dim.frac.suffix,
+              }
+            )
+          );
+        } else {
+          this.elements.push(
+            SVG.umlAction(cx, cy, dim.w, dim.h, dim.lines, { isIO })
+          );
+        }
+      },
+    };
+  }
 
-        const svgContent = `
+  layoutSeq(items) {
+    const valid = items.filter(Boolean);
+    if (!valid.length) return { w: 0, h: 0, cx: 0, render: () => {} };
+    const gap = this.options.nodeGap;
+    const cx = Math.max(...valid.map((item) => item.cx));
+    const rightMax = Math.max(...valid.map((item) => item.w - item.cx));
+    const totalW = cx + rightMax;
+    const yOffsets = [];
+    let curY = 0;
+    for (let i = 0; i < valid.length; i++) {
+      yOffsets.push(curY);
+      curY += valid[i].h + (i < valid.length - 1 ? gap : 0);
+    }
+    const totalH = curY;
+
+    return {
+      w: totalW,
+      h: totalH,
+      cx: cx,
+      render: (x, y) => {
+        const axisX = x + cx;
+        for (let i = 0; i < valid.length; i++) {
+          const item = valid[i];
+          const itemX = axisX - item.cx;
+          const itemY = y + yOffsets[i];
+          item.render(itemX, itemY);
+          if (i < valid.length - 1) {
+            const nextItemY = y + yOffsets[i + 1];
+            this.bounds.addPoint(axisX, itemY + item.h);
+            this.bounds.addPoint(axisX, nextItemY);
+            this.elements.push(
+              SVG.line(axisX, itemY + item.h, axisX, nextItemY, true, "arrow-uml")
+            );
+          }
+        }
+      },
+    };
+  }
+
+  layoutIf(node) {
+    const condText = node.condition;
+    const thenLayout = this.layoutNodeList(node.thenBranch || []);
+    const hasElse = node.elseBranch && node.elseBranch.length > 0;
+    const elseLayout = hasElse
+      ? this.layoutNodeList(node.elseBranch)
+      : { w: 0, h: 0, cx: 0, render: () => {} };
+
+    const branches = [
+      {
+        label: "[інакше]",
+        layout: elseLayout,
+      },
+      {
+        label: this.formatGuard(condText),
+        layout: thenLayout,
+      },
+    ];
+
+    const gap = this.options.nodeGap;
+    const dw = this.options.diamondSize || 26;
+    const dh = this.options.diamondSize || 26;
+    const branchSpacing = 34;
+
+    const b0W = branches[0].layout.w > 0 ? branches[0].layout.w : Math.max(36, dw / 2 + 10);
+    const b0Cx = branches[0].layout.w > 0 ? branches[0].layout.cx : b0W / 2;
+    const b1W = branches[1].layout.w;
+    const b1Cx = branches[1].layout.cx;
+
+    let i0 = 0;
+    let i1 = b0W + branchSpacing;
+    let c0 = i0 + b0Cx;
+    let c1 = i1 + b1Cx;
+
+    const needed = dw + branchSpacing - (c1 - c0);
+    if (needed > 0) {
+      i1 += needed;
+      c1 += needed;
+    }
+    const r = i1 + b1W;
+
+    const diamondX = (c0 + c1) / 2;
+    const vShift = -Math.min(0, diamondX - dw / 2);
+    const totalW = Math.max(r, diamondX + dw / 2) + vShift;
+    const topGap = dh + gap;
+    const maxBranchH = Math.max(branches[0].layout.h, branches[1].layout.h);
+    const mergeDiamondR = (this.options.mergeDiamondSize || 14) / 2;
+    const mergeY = topGap + maxBranchH + gap + mergeDiamondR;
+    const totalH = mergeY + mergeDiamondR;
+    const totalCx = diamondX + vShift;
+
+    return {
+      w: totalW,
+      h: totalH,
+      cx: totalCx,
+      render: (ox, oy) => {
+        const k = ox + totalCx;
+        const topY = oy;
+        const tt = topY + dh / 2;
+        const marker = "arrow-uml";
+
+        // Decision Diamond (empty inside)
+        this.bounds.addRect(k - dw / 2, topY, dw, dh);
+        this.elements.push(SVG.umlDiamond(k, tt, dw));
+
+        const centers = [c0, c1];
+        const iOffsets = [i0, i1];
+
+        branches.forEach((branch, S) => {
+          const branchX = ox + vShift + centers[S];
+          const branchTopY = topY + topGap;
+          const diamondExitX = k + (S === 1 ? dw / 2 : -dw / 2);
+
+          // Top branch line
+          const branchPts = [
+            [diamondExitX, tt],
+            [branchX, tt],
+            [branchX, branchTopY],
+          ];
+          branchPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+          this.elements.push(SVG.polyline(branchPts, true, marker));
+
+          // Guard label near diamond exit
+          const labelX = k + (S === 1 ? dw / 2 + 8 : -dw / 2 - 8);
+          const labelAnchor = S === 1 ? "start" : "end";
+          this.bounds.addText(labelX, tt - 7, branch.label, { anchor: labelAnchor, size: 12 });
+          this.elements.push(
+            SVG.label(labelX, tt - 7, branch.label, {
+              anchor: labelAnchor,
+              size: 12,
+              weight: "600",
+            })
+          );
+
+          // Render branch content
+          if (branch.layout.w > 0 || branch.layout.h > 0) {
+            branch.layout.render(ox + vShift + iOffsets[S], branchTopY);
+          }
+
+          // Bottom line from branch to merge diamond
+          const branchBottomY = branchTopY + branch.layout.h;
+          const targetX = S === 0 ? k - mergeDiamondR : k + mergeDiamondR;
+          const targetY = topY + mergeY;
+
+          if (Math.abs(branchX - targetX) < 1) {
+            this.bounds.addPoint(branchX, branchBottomY);
+            this.bounds.addPoint(targetX, targetY);
+            this.elements.push(SVG.line(branchX, branchBottomY, targetX, targetY, true, marker));
+          } else {
+            const bottomPts = [
+              [branchX, branchBottomY],
+              [branchX, targetY],
+              [targetX, targetY],
+            ];
+            bottomPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+            this.elements.push(SVG.polyline(bottomPts, true, marker));
+          }
+        });
+
+        // Merge Diamond (14x14)
+        const mSize = this.options.mergeDiamondSize || 14;
+        this.bounds.addRect(k - mSize / 2, topY + mergeY - mSize / 2, mSize, mSize);
+        this.elements.push(SVG.umlDiamond(k, topY + mergeY, mSize));
+      },
+    };
+  }
+
+  layoutWhile(stmt) {
+    const condText = stmt.condition;
+    const bodyItems = (stmt.body || []).slice();
+    if (stmt.step) {
+      bodyItems.push({ type: "process", text: stmt.step });
+    }
+    const bodyLayout = this.layoutNodeList(bodyItems);
+    const gap = this.options.nodeGap;
+    const mSize = this.options.mergeDiamondSize || 14;
+    const dSize = this.options.diamondSize || 26;
+    const guard = this.formatGuard(condText);
+
+    const loopMarginLeft = 32;
+    const loopMarginRight = 36;
+    const innerLeft = Math.max(dSize / 2, bodyLayout.cx);
+    const innerRight = Math.max(dSize / 2, bodyLayout.w - bodyLayout.cx);
+    const totalW = loopMarginLeft + innerLeft + innerRight + loopMarginRight;
+    const axisX = loopMarginLeft + innerLeft;
+
+    const mergeCy = mSize / 2;
+    const decCy = mergeCy + mSize / 2 + gap + dSize / 2;
+    const bodyTopY = decCy + dSize / 2 + gap;
+    const bodyBottomY = bodyTopY + bodyLayout.h;
+    const totalH = bodyBottomY + gap;
+
+    return {
+      w: totalW,
+      h: totalH,
+      cx: axisX,
+      render: (ox, oy) => {
+        const k = ox + axisX;
+        const marker = "arrow-uml";
+
+        // Top Merge Diamond
+        this.bounds.addRect(k - mSize / 2, oy, mSize, mSize);
+        this.elements.push(SVG.umlDiamond(k, oy + mergeCy, mSize));
+
+        // Line to Decision Diamond
+        this.bounds.addPoint(k, oy + mSize);
+        this.bounds.addPoint(k, oy + decCy - dSize / 2);
+        this.elements.push(SVG.line(k, oy + mSize, k, oy + decCy - dSize / 2, true, marker));
+
+        // Decision Diamond
+        this.bounds.addRect(k - dSize / 2, oy + decCy - dSize / 2, dSize, dSize);
+        this.elements.push(SVG.umlDiamond(k, oy + decCy, dSize));
+
+        // Guard label on line to body
+        const labelY = oy + decCy + dSize / 2 + 13;
+        this.bounds.addText(k + 8, labelY, guard, { anchor: "start", size: 12 });
+        this.elements.push(SVG.label(k + 8, labelY, guard, { anchor: "start", size: 12, weight: "600" }));
+
+        // Line down to body
+        this.bounds.addPoint(k, oy + decCy + dSize / 2);
+        this.bounds.addPoint(k, oy + bodyTopY);
+        this.elements.push(SVG.line(k, oy + decCy + dSize / 2, k, oy + bodyTopY, true, marker));
+
+        // Render body
+        bodyLayout.render(k - bodyLayout.cx, oy + bodyTopY);
+
+        // Loopback line around left into merge diamond
+        const loopLeftX = ox + 8;
+        const loopPts = [
+          [k, oy + bodyBottomY],
+          [k, oy + bodyBottomY + 12],
+          [loopLeftX, oy + bodyBottomY + 12],
+          [loopLeftX, oy + mergeCy],
+          [k - mSize / 2, oy + mergeCy],
+        ];
+        loopPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+        this.elements.push(SVG.polyline(loopPts, true, marker));
+
+        // Right exit line ([інакше]) around right
+        const exitRightX = ox + totalW - 8;
+        const exitLabelX = k + dSize / 2 + 8;
+        this.bounds.addText(exitLabelX, oy + decCy - 6, "[інакше]", { anchor: "start", size: 12 });
+        this.elements.push(SVG.label(exitLabelX, oy + decCy - 6, "[інакше]", { anchor: "start", size: 12, weight: "600" }));
+
+        const exitPts = [
+          [k + dSize / 2, oy + decCy],
+          [exitRightX, oy + decCy],
+          [exitRightX, oy + totalH],
+          [k, oy + totalH],
+        ];
+        exitPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+        this.elements.push(SVG.polyline(exitPts, false));
+      },
+    };
+  }
+
+  layoutDoWhile(stmt) {
+    const condText = stmt.condition;
+    const bodyLayout = this.layoutNodeList(stmt.body || []);
+    const gap = this.options.nodeGap;
+    const mSize = this.options.mergeDiamondSize || 14;
+    const dSize = this.options.diamondSize || 26;
+    const guard = this.formatGuard(condText);
+
+    const loopMarginLeft = 32;
+    const innerLeft = Math.max(dSize / 2, bodyLayout.cx);
+    const innerRight = Math.max(dSize / 2, bodyLayout.w - bodyLayout.cx);
+    const totalW = loopMarginLeft + innerLeft + innerRight + 16;
+    const axisX = loopMarginLeft + innerLeft;
+
+    const mergeCy = mSize / 2;
+    const bodyTopY = mSize + gap;
+    const bodyBottomY = bodyTopY + bodyLayout.h;
+    const decCy = bodyBottomY + gap + dSize / 2;
+    const totalH = decCy + dSize / 2;
+
+    return {
+      w: totalW,
+      h: totalH,
+      cx: axisX,
+      render: (ox, oy) => {
+        const k = ox + axisX;
+        const marker = "arrow-uml";
+
+        // Top Merge Diamond
+        this.bounds.addRect(k - mSize / 2, oy, mSize, mSize);
+        this.elements.push(SVG.umlDiamond(k, oy + mergeCy, mSize));
+
+        // Line to body
+        this.bounds.addPoint(k, oy + mSize);
+        this.bounds.addPoint(k, oy + bodyTopY);
+        this.elements.push(SVG.line(k, oy + mSize, k, oy + bodyTopY, true, marker));
+
+        // Render body
+        bodyLayout.render(k - bodyLayout.cx, oy + bodyTopY);
+
+        // Line from body to decision diamond
+        this.bounds.addPoint(k, oy + bodyBottomY);
+        this.bounds.addPoint(k, oy + decCy - dSize / 2);
+        this.elements.push(SVG.line(k, oy + bodyBottomY, k, oy + decCy - dSize / 2, true, marker));
+
+        // Decision Diamond
+        this.bounds.addRect(k - dSize / 2, oy + decCy - dSize / 2, dSize, dSize);
+        this.elements.push(SVG.umlDiamond(k, oy + decCy, dSize));
+
+        // Loopback around left to top merge diamond
+        const loopLeftX = ox + 8;
+        const labelX = k - dSize / 2 - 8;
+        this.bounds.addText(labelX, oy + decCy - 6, guard, { anchor: "end", size: 12 });
+        this.elements.push(SVG.label(labelX, oy + decCy - 6, guard, { anchor: "end", size: 12, weight: "600" }));
+
+        const loopPts = [
+          [k - dSize / 2, oy + decCy],
+          [loopLeftX, oy + decCy],
+          [loopLeftX, oy + mergeCy],
+          [k - mSize / 2, oy + mergeCy],
+        ];
+        loopPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+        this.elements.push(SVG.polyline(loopPts, true, marker));
+
+        // [інакше] down exit
+        this.bounds.addText(k + 8, oy + decCy + dSize / 2 + 13, "[інакше]", { anchor: "start", size: 12 });
+        this.elements.push(SVG.label(k + 8, oy + decCy + dSize / 2 + 13, "[інакше]", { anchor: "start", size: 12, weight: "600" }));
+      },
+    };
+  }
+
+  layoutFor(stmt) {
+    const items = [];
+    if (stmt.init) {
+      items.push({ type: "process", text: stmt.init });
+    }
+    items.push({
+      type: "while",
+      condition: stmt.condition,
+      body: stmt.body || [],
+      step: stmt.step,
+    });
+    return this.layoutNodeList(items);
+  }
+
+  layoutSwitch(stmt) {
+    const cases = stmt.cases || [];
+    const gap = this.options.nodeGap;
+    const dw = this.options.diamondSize || 26;
+    const dh = this.options.diamondSize || 26;
+    const mR = (this.options.mergeDiamondSize || 14) / 2;
+
+    const caseBranches = cases.map((c) => ({
+      label: `[ ${c.labels ? c.labels.join(", ") : c.label || "?"} ]`,
+      layout: this.layoutNodeList(c.body || []),
+    }));
+
+    if (!caseBranches.length) {
+      return { w: dw, h: dh, cx: dw / 2, render: (ox, oy) => {
+        this.bounds.addRect(ox, oy, dw, dh);
+        this.elements.push(SVG.umlDiamond(ox + dw / 2, oy + dh / 2, dw));
+      }};
+    }
+
+    const branchSpacing = 30;
+    let r = 0;
+    const iOffsets = [];
+    caseBranches.forEach((b) => {
+      iOffsets.push(r);
+      r += b.layout.w + branchSpacing;
+    });
+    r -= branchSpacing;
+
+    const centers = caseBranches.map((b, idx) => iOffsets[idx] + b.layout.cx);
+    const diamondX = (centers[0] + centers[centers.length - 1]) / 2;
+    const vShift = -Math.min(0, diamondX - dw / 2);
+    const totalW = Math.max(r, diamondX + dw / 2) + vShift;
+    const topGap = dh + gap;
+    const maxBranchH = Math.max(...caseBranches.map((b) => b.layout.h), 40);
+    const mergeY = topGap + maxBranchH + gap + mR;
+    const totalH = mergeY + mR;
+    const totalCx = diamondX + vShift;
+
+    return {
+      w: totalW,
+      h: totalH,
+      cx: totalCx,
+      render: (ox, oy) => {
+        const k = ox + totalCx;
+        const topY = oy;
+        const tt = topY + dh / 2;
+        const marker = "arrow-uml";
+
+        this.bounds.addRect(k - dw / 2, topY, dw, dh);
+        this.elements.push(SVG.umlDiamond(k, tt, dw));
+
+        caseBranches.forEach((branch, S) => {
+          const branchX = ox + vShift + centers[S];
+          const branchTopY = topY + topGap;
+
+          const branchPts = [
+            [k, topY + dh],
+            [k, topY + dh + 10],
+            [branchX, topY + dh + 10],
+            [branchX, branchTopY],
+          ];
+          branchPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+          this.elements.push(SVG.polyline(branchPts, true, marker));
+
+          this.bounds.addText(branchX + 6, branchTopY - 6, branch.label, { anchor: "start", size: 11 });
+          this.elements.push(SVG.label(branchX + 6, branchTopY - 6, branch.label, { anchor: "start", size: 11, weight: "600" }));
+
+          if (branch.layout.w > 0 || branch.layout.h > 0) {
+            branch.layout.render(ox + vShift + iOffsets[S], branchTopY);
+          }
+
+          const branchBottomY = branchTopY + branch.layout.h;
+          const targetY = topY + mergeY;
+          const targetX = branchX < k - 1 ? k - mR : branchX > k + 1 ? k + mR : k;
+
+          const bottomPts = [
+            [branchX, branchBottomY],
+            [branchX, targetY],
+            [targetX, targetY],
+          ];
+          bottomPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+          this.elements.push(SVG.polyline(bottomPts, true, marker));
+        });
+
+        const mSize = mR * 2;
+        this.bounds.addRect(k - mR, topY + mergeY - mR, mSize, mSize);
+        this.elements.push(SVG.umlDiamond(k, topY + mergeY, mSize));
+      },
+    };
+  }
+
+  layoutStatement(stmt) {
+    if (!stmt) return null;
+    switch (stmt.type) {
+      case "input":
+      case "output":
+      case "process":
+      case "return":
+        return this.layoutPrimitive(stmt, stmt.type);
+      case "if":
+        return this.layoutIf(stmt);
+      case "while":
+        return this.layoutWhile(stmt);
+      case "do_while":
+        return this.layoutDoWhile(stmt);
+      case "for":
+        return this.layoutFor(stmt);
+      case "switch":
+        return this.layoutSwitch(stmt);
+      default:
+        return this.layoutPrimitive(stmt, "process");
+    }
+  }
+
+  layoutNodeList(list) {
+    const items = list.map((s) => this.layoutStatement(s)).filter(Boolean);
+    return this.layoutSeq(items);
+  }
+
+  render() {
+    this.elements = [];
+    this.bounds = new BoundingBox();
+
+    // Filter main's return 0
+    const filteredAst = this.ast.filter((stmt, idx) => {
+      if (stmt.type === "return" && stmt.isMainZero && idx === this.ast.length - 1) {
+        return false;
+      }
+      return true;
+    });
+
+    const isNonMain = this.ast.functionName && this.ast.functionName !== "main";
+    let startNode;
+    if (isNonMain) {
+      const sig = this.ast.functionSignature || this.ast.functionName;
+      startNode = this.layoutPrimitive({ type: "process", text: sig }, "process");
+    } else {
+      startNode = this.layoutPrimitive(null, "start");
+    }
+
+    const bodySeq = this.layoutNodeList(filteredAst);
+    const endNode = this.layoutPrimitive(null, "end");
+
+    const fullSeq = this.layoutSeq([startNode, bodySeq, endNode]);
+    const startX = 40;
+    const startY = 40;
+    fullSeq.render(startX, startY);
+
+    const vb = this.bounds.getViewBox(50, 40);
+    const svgContent = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}" width="${vb.width}" height="${vb.height}">
             ${SVG.createDefs()}
             <g id="uml-layer">
-                ${this.elements.join('\n')}
+                ${this.elements.join("\n")}
             </g>
         </svg>
-        `;
-
-        return {
-            svg: svgContent,
-            width: vb.width,
-            height: vb.height
-        };
-    }
-
-    renderInitialNode() {
-        if (this.ast.functionName && this.ast.functionName !== 'main') {
-            const signature = this.ast.functionSignature || this.ast.functionName;
-            const { lines, w, h } = this.calcActionDimensions(signature, false);
-            const cy = this.currentY + h / 2;
-            this.addAction(this.centerX, cy, w, h, lines);
-            this.currentY += h;
-        } else {
-            const r = 11;
-            const cy = this.currentY + r;
-            this.addInitialNode(this.centerX, cy, r);
-            this.currentY += r * 2;
-        }
-
-        const nextY = this.currentY + this.options.nodeGap;
-        this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    renderFinalNode() {
-        const r = 13;
-        const cy = this.currentY + r;
-        this.addFinalNode(this.centerX, cy, r);
-        this.currentY += r * 2;
-    }
-
-    renderStatement(stmt) {
-        switch (stmt.type) {
-            case 'input':
-                this.renderInput(stmt);
-                break;
-            case 'output':
-                this.renderOutput(stmt);
-                break;
-            case 'process':
-                this.renderProcess(stmt);
-                break;
-            case 'return':
-                this.renderReturn(stmt);
-                break;
-            case 'if':
-                this.renderIf(stmt);
-                break;
-            case 'while':
-                this.renderWhile(stmt);
-                break;
-            case 'for':
-                this.renderFor(stmt);
-                break;
-            case 'do_while':
-                this.renderDoWhile(stmt);
-                break;
-            default:
-                break;
-        }
-    }
-
-    renderReturn(stmt) {
-        const dim = this.calcActionDimensions(stmt, false);
-        const cy = this.currentY + dim.h / 2;
-
-        this.renderActionNode(this.centerX, cy, dim);
-        this.currentY += dim.h;
-
-        const nextY = this.currentY + this.options.nodeGap;
-        this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    calcActionDimensions(actOrText, isIO = false, maxChars = 32) {
-        if (typeof actOrText === 'object' && actOrText !== null) {
-            if (this.options.expressionMode === 'math' && (actOrText.type === 'process' || actOrText.type === 'return')) {
-                const frac = this.checkFraction(actOrText);
-                if (frac) {
-                    const charW = 8.2;
-                    const leftPart = frac.target ? `${frac.target} = ${frac.prefix}` : frac.prefix;
-                    const leftW = leftPart ? leftPart.length * charW : 0;
-                    const rightW = frac.suffix ? frac.suffix.length * charW : 0;
-                    const numW = frac.numText.length * 8.0;
-                    const denW = frac.denText.length * 8.0;
-                    const barW = Math.max(numW, denW) + 16;
-                    const totalW = leftW + (leftW > 0 ? 6 : 0) + barW + (rightW > 0 ? 6 : 0) + rightW;
-                    return {
-                        isFraction: true,
-                        frac,
-                        lines: [],
-                        w: Math.max(120, Math.ceil(totalW + 36)),
-                        h: 58
-                    };
-                }
-            }
-            const text = this.getNodeText(actOrText);
-            const lines = SVG.splitText(text, maxChars);
-            const maxL = Math.max(...lines.map(l => l.length));
-            const w = Math.max(isIO ? 105 : 120, maxL * 8.5 + 26);
-            const h = Math.max(34, lines.length * 18 + 14);
-            return { isFraction: false, lines, w, h };
-        } else {
-            let text = String(actOrText || '');
-            if (this.options.expressionMode === 'math') {
-                text = toMathExpression(text);
-            }
-            const lines = SVG.splitText(text, maxChars);
-            const maxL = Math.max(...lines.map(l => l.length));
-            const w = Math.max(isIO ? 105 : 120, maxL * 8.5 + 26);
-            const h = Math.max(34, lines.length * 18 + 14);
-            return { isFraction: false, lines, w, h };
-        }
-    }
-
-    renderActionNode(cx, cy, dim, opts = {}) {
-        if (dim.isFraction) {
-            this.addFractionAction(cx, cy, dim.w, dim.h, dim.frac.target, dim.frac.numText, dim.frac.denText, {
-                ...opts,
-                prefix: dim.frac.prefix,
-                suffix: dim.frac.suffix
-            });
-        } else {
-            this.addAction(cx, cy, dim.w, dim.h, dim.lines, opts);
-        }
-    }
-
-    renderInput(stmt) {
-        const dim = this.calcActionDimensions(stmt, true);
-        const cy = this.currentY + dim.h / 2;
-
-        this.renderActionNode(this.centerX, cy, dim, { isIO: true });
-        this.currentY += dim.h;
-
-        const nextY = this.currentY + this.options.nodeGap;
-        this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    renderOutput(stmt) {
-        const dim = this.calcActionDimensions(stmt, true);
-        const cy = this.currentY + dim.h / 2;
-
-        this.renderActionNode(this.centerX, cy, dim, { isIO: true });
-        this.currentY += dim.h;
-
-        const nextY = this.currentY + this.options.nodeGap;
-        this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    checkFraction(stmt) {
-        if (!stmt) return null;
-        let frac = parseFraction(stmt.text || stmt.raw || '');
-        if (!frac || !frac.isFraction) {
-            if (stmt.expr) {
-                frac = parseFraction(stmt.expr);
-            }
-        }
-        if (frac && frac.isFraction) {
-            let target = frac.target || stmt.target || '';
-            target = target.replace(/^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/, '').trim();
-            return {
-                target: target,
-                prefix: toMathExpression(frac.prefix || ''),
-                numText: toMathExpression(frac.numerator),
-                denText: toMathExpression(frac.denominator),
-                suffix: toMathExpression(frac.suffix || '')
-            };
-        }
-        return null;
-    }
-
-    renderProcess(stmt) {
-        const dim = this.calcActionDimensions(stmt, false);
-        const cy = this.currentY + dim.h / 2;
-
-        this.renderActionNode(this.centerX, cy, dim);
-        this.currentY += dim.h;
-
-        const nextY = this.currentY + this.options.nodeGap;
-        this.addLine(this.centerX, this.currentY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    renderIf(stmt) {
-        const chain = this.flattenIfChain(stmt);
-        if (chain.conditions.length > 1) {
-            this.renderChainedIfElse(chain);
-        } else if (chain.elseBranch && chain.elseBranch.length > 0) {
-            this.renderFullIf(stmt);
-        } else {
-            this.renderShortIf(stmt);
-        }
-    }
-
-    flattenIfChain(stmt) {
-        const conditions = [];
-        let cur = stmt;
-        while (cur && cur.type === 'if') {
-            conditions.push({
-                condition: this.getConditionText(cur.condition),
-                thenBranch: cur.thenBranch || []
-            });
-            if (cur.elseBranch && cur.elseBranch.length === 1 && cur.elseBranch[0].type === 'if') {
-                cur = cur.elseBranch[0];
-            } else {
-                return {
-                    conditions: conditions,
-                    elseBranch: cur.elseBranch || []
-                };
-            }
-        }
-        return { conditions: conditions, elseBranch: [] };
-    }
-
-    getConditionText(cond) {
-        if (!cond) return '';
-        if (this.options.expressionMode === 'math') {
-            return toMathExpression(cond);
-        }
-        return cond;
-    }
-
-    formatGuard(conditionText, maxChars = 38) {
-        const raw = this.getConditionText(conditionText);
-        const full = `[ ${raw} ]`;
-        if (full.length <= maxChars) {
-            return {
-                lines: [full],
-                w: Math.max(45, full.length * 7.5),
-                h: 18
-            };
-        }
-        const innerLines = SVG.splitText(raw, maxChars - 4);
-        const lines = innerLines.map((l, idx) => {
-            if (idx === 0 && innerLines.length === 1) return `[ ${l} ]`;
-            if (idx === 0) return `[ ${l}`;
-            if (idx === innerLines.length - 1) return `  ${l} ]`;
-            return `  ${l}`;
-        });
-        const maxLen = Math.max(...lines.map(l => l.length));
-        return {
-            lines: lines,
-            w: Math.max(60, maxLen * 7.5),
-            h: lines.length * 15.5
-        };
-    }
-
-    // 1. Short if (без else, Слайд 4 і Слайд 7 спосіб 1)
-    renderShortIf(stmt) {
-        const dSize = this.options.diamondSize;
-        const guard = this.formatGuard(stmt.condition, 36);
-
-        // Clearance above decision diamond if guard is multiline
-        const extraTop = guard.lines.length > 1 ? Math.max(0, guard.h - 18) : 0;
-        if (extraTop > 0) {
-            const extendedY = this.currentY + extraTop;
-            this.addLine(this.centerX, this.currentY, this.centerX, extendedY, true, 'arrow-uml');
-            this.currentY = extendedY;
-        }
-
-        const decY = this.currentY + dSize / 2;
-        this.addDiamond(this.centerX, decY, dSize);
-
-        const act = stmt.thenBranch && stmt.thenBranch[0];
-        const dim = this.calcActionDimensions(act, act?.type === 'output' || act?.type === 'input');
-        const actW = dim.w;
-        const actH = dim.h;
-
-        // Dynamic right column: guarantees guard label never collides with action box
-        const minGap = Math.max(90, guard.w + 24);
-        const rightColX = Math.max(this.centerX + 195, this.centerX + dSize / 2 + minGap + actW / 2);
-
-        // Guard label placed above line
-        const labelX = this.centerX + dSize / 2 + 8;
-        const labelY = guard.lines.length > 1 ? decY - guard.h / 2 - 6 : decY - 11;
-        this.addLabel(labelX, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-
-        // Arrow from decision diamond right vertex to action box left edge
-        this.addLine(this.centerX + dSize / 2, decY, rightColX - actW / 2, decY, true, 'arrow-uml');
-
-        // Action box centered at (rightColX, decY)
-        this.renderActionNode(rightColX, decY, dim, { isIO: act?.type === 'output' || act?.type === 'input' });
-
-        // Merge diamond below decision diamond
-        const mergeCy = decY + Math.max(48, actH / 2 + 20);
-        this.addDiamond(this.centerX, mergeCy, dSize);
-
-        // Straight arrow down from decision diamond into merge diamond
-        this.addLine(this.centerX, decY + dSize / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
-        this.addLabel(this.centerX + 14, decY + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-
-        // From action box bottom: drop down to merge level, then left with arrow into merge diamond
-        const actionBottomY = decY + actH / 2;
-        this.addPolyline([
-            [rightColX, actionBottomY],
-            [rightColX, mergeCy],
-            [this.centerX + dSize / 2, mergeCy]
-        ], true, 'arrow-uml');
-
-        // Line down from merge diamond
-        const nextY = mergeCy + dSize / 2 + this.options.nodeGap;
-        this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    // 2. Full if (з else, Слайд 5)
-    renderFullIf(stmt) {
-        const dSize = this.options.diamondSize;
-        const guard = this.formatGuard(stmt.condition, 36);
-
-        // Clearance above decision diamond if guard is multiline
-        const extraTop = guard.lines.length > 1 ? Math.max(0, guard.h - 18) : 0;
-        if (extraTop > 0) {
-            const extendedY = this.currentY + extraTop;
-            this.addLine(this.centerX, this.currentY, this.centerX, extendedY, true, 'arrow-uml');
-            this.currentY = extendedY;
-        }
-
-        const decY = this.currentY + dSize / 2;
-        this.addDiamond(this.centerX, decY, dSize);
-
-        const thenAct = stmt.thenBranch && stmt.thenBranch[0];
-        const thenDim = this.calcActionDimensions(thenAct, thenAct?.type === 'output' || thenAct?.type === 'input');
-        const thenW = thenDim.w;
-        const thenH = thenDim.h;
-
-        const minGap = Math.max(90, guard.w + 24);
-        const rightColX = Math.max(this.centerX + 195, this.centerX + dSize / 2 + minGap + thenW / 2);
-
-        // Label for then-branch
-        const labelX = this.centerX + dSize / 2 + 8;
-        const labelY = guard.lines.length > 1 ? decY - guard.h / 2 - 6 : decY - 11;
-        this.addLabel(labelX, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-
-        // Arrow to right action
-        this.addLine(this.centerX + dSize / 2, decY, rightColX - thenW / 2, decY, true, 'arrow-uml');
-        this.renderActionNode(rightColX, decY, thenDim, { isIO: thenAct?.type === 'output' || thenAct?.type === 'input' });
-
-        // Else action straight down
-        const elseAct = stmt.elseBranch && stmt.elseBranch[0];
-        const elseDim = this.calcActionDimensions(elseAct, elseAct?.type === 'output' || elseAct?.type === 'input');
-        const elseW = elseDim.w;
-        const elseH = elseDim.h;
-        const elseActionCy = decY + Math.max(52, elseH / 2 + 22);
-
-        this.addLine(this.centerX, decY + dSize / 2, this.centerX, elseActionCy - elseH / 2, true, 'arrow-uml');
-        this.addLabel(this.centerX + 14, decY + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-        this.renderActionNode(this.centerX, elseActionCy, elseDim, { isIO: elseAct?.type === 'output' || elseAct?.type === 'input' });
-
-        // Merge diamond below else action
-        const mergeCy = Math.max(elseActionCy + elseH / 2 + 28, decY + thenH / 2 + 28);
-        this.addDiamond(this.centerX, mergeCy, dSize);
-
-        // Arrow from else action down to merge diamond
-        this.addLine(this.centerX, elseActionCy + elseH / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
-
-        // Arrow from right action down and left to merge diamond
-        this.addPolyline([
-            [rightColX, decY + thenH / 2],
-            [rightColX, mergeCy],
-            [this.centerX + dSize / 2, mergeCy]
-        ], true, 'arrow-uml');
-
-        const nextY = mergeCy + dSize / 2 + this.options.nodeGap;
-        this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    // 3. Chained if-else (Слайд 7 Спосіб 2)
-    renderChainedIfElse(chain) {
-        const dSize = this.options.diamondSize;
-        const numConds = chain.conditions.length;
-
-        // Exactly 2 conditions (Slide 7)
-        if (numConds === 2) {
-            const cond1 = chain.conditions[0];
-            const cond2 = chain.conditions[1];
-
-            const guard1 = this.formatGuard(cond1.condition, 36);
-            const guard2 = this.formatGuard(cond2.condition, 36);
-
-            // First decision diamond [ x<0 ]
-            const extraTop1 = guard1.lines.length > 1 ? Math.max(0, guard1.h - 18) : 0;
-            if (extraTop1 > 0) {
-                const extY = this.currentY + extraTop1;
-                this.addLine(this.centerX, this.currentY, this.centerX, extY, true, 'arrow-uml');
-                this.currentY = extY;
-            }
-
-            const dec1Y = this.currentY + dSize / 2;
-            this.addDiamond(this.centerX, dec1Y, dSize);
-
-            // Right action 1 (B = вираз_1)
-            const act1 = cond1.thenBranch[0];
-            const dim1 = this.calcActionDimensions(act1, act1?.type === 'output' || act1?.type === 'input');
-            const act1W = dim1.w;
-            const act1H = dim1.h;
-
-            // Second condition
-            const act3 = cond2.thenBranch[0];
-            const dim3 = this.calcActionDimensions(act3, act3?.type === 'output' || act3?.type === 'input');
-            const act3W = dim3.w;
-            const act3H = dim3.h;
-
-            const maxGuardW = Math.max(guard1.w, guard2.w);
-            const maxActW = Math.max(act1W, act3W);
-            const minGap = Math.max(90, maxGuardW + 24);
-            const rightColX = Math.max(this.centerX + 195, this.centerX + dSize / 2 + minGap + maxActW / 2);
-
-            const label1Y = guard1.lines.length > 1 ? dec1Y - guard1.h / 2 - 6 : dec1Y - 11;
-            this.addLabel(this.centerX + dSize / 2 + 8, label1Y, guard1.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-            this.addLine(this.centerX + dSize / 2, dec1Y, rightColX - act1W / 2, dec1Y, true, 'arrow-uml');
-            this.renderActionNode(rightColX, dec1Y, dim1, { isIO: act1?.type === 'output' || act1?.type === 'input' });
-
-            // Down arrow to second decision diamond [ x>1 ]
-            const extraTop2 = guard2.lines.length > 1 ? Math.max(0, guard2.h - 18) : 0;
-            const dec2Y = dec1Y + Math.max(48, act1H / 2 + 20) + extraTop2;
-            this.addLine(this.centerX, dec1Y + dSize / 2, this.centerX, dec2Y - dSize / 2, true, 'arrow-uml');
-            this.addDiamond(this.centerX, dec2Y, dSize);
-
-            // Right action 3 (B = вираз_3)
-            const label2Y = guard2.lines.length > 1 ? dec2Y - guard2.h / 2 - 6 : dec2Y - 11;
-            this.addLabel(this.centerX + dSize / 2 + 8, label2Y, guard2.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-            this.addLine(this.centerX + dSize / 2, dec2Y, rightColX - act3W / 2, dec2Y, true, 'arrow-uml');
-            this.renderActionNode(rightColX, dec2Y, dim3, { isIO: act3?.type === 'output' || act3?.type === 'input' });
-
-            // Down arrow from dec2 to optional action 2 or straight to merge
-            const hasElse = chain.elseBranch && chain.elseBranch.length > 0;
-            const act2 = hasElse ? chain.elseBranch[0] : null;
-            const dim2 = hasElse ? this.calcActionDimensions(act2, act2?.type === 'output' || act2?.type === 'input') : { w: 0, h: 0 };
-            const act2W = dim2.w;
-            const act2H = dim2.h;
-            const act2Y = hasElse ? dec2Y + Math.max(50, act2H / 2 + 20) : dec2Y;
-
-            if (hasElse) {
-                this.addLine(this.centerX, dec2Y + dSize / 2, this.centerX, act2Y - act2H / 2, true, 'arrow-uml');
-                this.addLabel(this.centerX + 14, dec2Y + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-                this.renderActionNode(this.centerX, act2Y, dim2, { isIO: act2?.type === 'output' || act2?.type === 'input' });
-            }
-
-            // Central Merge diamond
-            const mergeCy = hasElse ? act2Y + act2H / 2 + 30 : dec2Y + Math.max(56, act3H / 2 + 28);
-            this.addDiamond(this.centerX, mergeCy, dSize);
-
-            // Right Merge diamond (as in Slide 7)
-            const mergeRightX = rightColX;
-            const mergeRightY = mergeCy;
-            this.addDiamond(mergeRightX, mergeRightY, dSize);
-
-            // Action 3 connects straight down into right merge diamond
-            this.addLine(rightColX, dec2Y + act3H / 2, rightColX, mergeRightY - dSize / 2, true, 'arrow-uml');
-
-            // Action 1 connects via outside bypass into right merge diamond (as in Slide 7)
-            const bypassX = rightColX + maxActW / 2 + 20;
-
-            this.addPolyline([
-                [rightColX + act1W / 2, dec1Y],
-                [bypassX, dec1Y],
-                [bypassX, mergeRightY],
-                [mergeRightX + dSize / 2, mergeRightY]
-            ], true, 'arrow-uml');
-
-            // Right merge diamond connects with horizontal arrow into central merge diamond
-            this.addLine(mergeRightX - dSize / 2, mergeRightY, this.centerX + dSize / 2, mergeCy, true, 'arrow-uml');
-
-            // Connect to central merge diamond
-            if (hasElse) {
-                this.addLine(this.centerX, act2Y + act2H / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
-            } else {
-                this.addLine(this.centerX, dec2Y + dSize / 2, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
-                this.addLabel(this.centerX + 14, dec2Y + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-            }
-
-            // Line down from central merge diamond
-            const nextY = mergeCy + dSize / 2 + this.options.nodeGap;
-            this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, nextY, true, 'arrow-uml');
-            this.currentY = nextY;
-            return;
-        }
-
-        // Generalized N > 2 cascade
-        const allThenDims = chain.conditions.flatMap(c => (c.thenBranch || []).map(act => this.calcActionDimensions(act, act.type === 'output' || act.type === 'input')));
-        const maxThenW = Math.max(120, ...allThenDims.map(d => d.w));
-
-        const guards = chain.conditions.map(c => this.formatGuard(c.condition, 36));
-        const maxGuardW = Math.max(...guards.map(g => g.w));
-
-        const minGap = Math.max(90, maxGuardW + 24);
-        const rightColX = Math.max(this.centerX + 200, this.centerX + dSize / 2 + minGap + maxThenW / 2);
-        const busRightX = rightColX + maxThenW / 2 + 25;
-
-        let curDecY = this.currentY + dSize / 2;
-        const branchBottoms = [];
-
-        for (let i = 0; i < numConds; i++) {
-            const condItem = chain.conditions[i];
-            const guard = guards[i];
-
-            this.addDiamond(this.centerX, curDecY, dSize);
-
-            const labelY = guard.lines.length > 1 ? curDecY - guard.h / 2 - 6 : curDecY - 11;
-            this.addLabel(this.centerX + dSize / 2 + 8, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-
-            let actCy = curDecY;
-            let actBottomY = curDecY;
-            for (const act of condItem.thenBranch) {
-                const dim = this.calcActionDimensions(act, act.type === 'output' || act.type === 'input');
-                this.addLine(this.centerX + dSize / 2, curDecY, rightColX - dim.w / 2, curDecY, true, 'arrow-uml');
-                this.renderActionNode(rightColX, actCy, dim, { isIO: act.type === 'output' || act.type === 'input' });
-                actBottomY = actCy + dim.h / 2;
-                actCy += dim.h + 10;
-            }
-            branchBottoms.push({ x: rightColX, y: actBottomY, isElse: false });
-
-            // Connect action bottom horizontally to busRightX
-            this.addLine(rightColX, actBottomY, busRightX, actBottomY);
-
-            if (i < numConds - 1) {
-                const nextGuard = guards[i + 1];
-                const extraNext = nextGuard.lines.length > 1 ? Math.max(0, nextGuard.h - 18) : 0;
-                const nextDecY = Math.max(curDecY + 48 + extraNext, actBottomY + 20);
-                this.addLine(this.centerX, curDecY + dSize / 2, this.centerX, nextDecY - dSize / 2, true, 'arrow-uml');
-                curDecY = nextDecY;
-            } else {
-                let elseBottomY = curDecY;
-                if (chain.elseBranch && chain.elseBranch.length > 0) {
-                    const act = chain.elseBranch[0];
-                    const dim = this.calcActionDimensions(act, act.type === 'output' || act.type === 'input');
-                    const elseCy = Math.max(curDecY + 48, actBottomY + 20);
-
-                    this.addLine(this.centerX, curDecY + dSize / 2, this.centerX, elseCy - dim.h / 2, true, 'arrow-uml');
-                    this.renderActionNode(this.centerX, elseCy, dim, { isIO: act.type === 'output' || act.type === 'input' });
-                    elseBottomY = elseCy + dim.h / 2;
-                }
-                branchBottoms.push({ x: this.centerX, y: elseBottomY, isElse: true });
-            }
-        }
-
-        const maxBranchY = Math.max(...branchBottoms.map(b => b.y));
-        const mergeCy = maxBranchY + 28;
-        this.addDiamond(this.centerX, mergeCy, dSize);
-
-        // Connect busRightX down to mergeCy and into merge diamond
-        const minThenY = Math.min(...branchBottoms.filter(b => !b.isElse).map(b => b.y));
-        this.addLine(busRightX, minThenY, busRightX, mergeCy);
-        this.addLine(busRightX, mergeCy, this.centerX + dSize / 2, mergeCy, true, 'arrow-uml');
-
-        // Connect else branch straight down into merge diamond
-        const elseBranch = branchBottoms.find(b => b.isElse);
-        if (elseBranch) {
-            this.addLine(this.centerX, elseBranch.y, this.centerX, mergeCy - dSize / 2, true, 'arrow-uml');
-        }
-
-        const nextY = mergeCy + dSize / 2 + this.options.nodeGap;
-        this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    // 4. While loop
-    renderWhile(stmt) {
-        const dSize = this.options.diamondSize;
-        const mergeCy = this.currentY + dSize / 2;
-        this.addDiamond(this.centerX, mergeCy, dSize);
-
-        const guard = this.formatGuard(stmt.condition, 36);
-
-        const decCy = mergeCy + 36;
-        this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, decCy - dSize / 2, true, 'arrow-uml');
-        this.addDiamond(this.centerX, decCy, dSize);
-
-        const labelY = guard.lines.length > 1 ? decCy + dSize / 2 + guard.h / 2 + 6 : decCy + dSize / 2 + 14;
-        this.addLabel(this.centerX + 14, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-
-        const bodyStartY = decCy + dSize / 2 + Math.max(28, guard.h + 12);
-        this.addLine(this.centerX, decCy + dSize / 2, this.centerX, bodyStartY, true, 'arrow-uml');
-        this.currentY = bodyStartY;
-
-        for (const bodyStmt of (stmt.body || [])) {
-            this.renderStatement(bodyStmt);
-        }
-
-        const loopBottomY = this.currentY;
-        const loopLeftX = Math.min(this.bounds.minX, this.centerX - 60) - 30;
-
-        // Loop back arrow around the left into the merge diamond
-        this.addPolyline([
-            [this.centerX, loopBottomY],
-            [loopLeftX, loopBottomY],
-            [loopLeftX, mergeCy],
-            [this.centerX - dSize / 2, mergeCy]
-        ], true, 'arrow-uml');
-
-        // [ else ] exit branch around the right
-        this.addLabel(this.centerX + dSize / 2 + 8, decCy - 11, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-        const exitRightX = Math.max(this.bounds.maxX, this.centerX + 60) + 30;
-        const exitY = loopBottomY + 28;
-
-        this.addPolyline([
-            [this.centerX + dSize / 2, decCy],
-            [exitRightX, decCy],
-            [exitRightX, exitY],
-            [this.centerX, exitY]
-        ], false);
-
-        const nextY = exitY + this.options.nodeGap;
-        this.addLine(this.centerX, exitY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    // 5. For loop
-    renderFor(stmt) {
-        if (stmt.init) {
-            this.renderProcess({ text: stmt.init, type: 'process' });
-        }
-
-        const dSize = this.options.diamondSize;
-        const mergeCy = this.currentY + dSize / 2;
-        this.addDiamond(this.centerX, mergeCy, dSize);
-
-        const guard = this.formatGuard(stmt.condition, 36);
-
-        const decCy = mergeCy + 36;
-        this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, decCy - dSize / 2, true, 'arrow-uml');
-        this.addDiamond(this.centerX, decCy, dSize);
-
-        const labelY = guard.lines.length > 1 ? decCy + dSize / 2 + guard.h / 2 + 6 : decCy + dSize / 2 + 14;
-        this.addLabel(this.centerX + 14, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-
-        const bodyStartY = decCy + dSize / 2 + Math.max(28, guard.h + 12);
-        this.addLine(this.centerX, decCy + dSize / 2, this.centerX, bodyStartY, true, 'arrow-uml');
-        this.currentY = bodyStartY;
-
-        for (const bodyStmt of (stmt.body || [])) {
-            this.renderStatement(bodyStmt);
-        }
-
-        if (stmt.step) {
-            this.renderProcess({ text: stmt.step, type: 'process' });
-        }
-
-        const loopBottomY = this.currentY;
-        const loopLeftX = Math.min(this.bounds.minX, this.centerX - 60) - 30;
-
-        // Loop back arrow around the left into the merge diamond
-        this.addPolyline([
-            [this.centerX, loopBottomY],
-            [loopLeftX, loopBottomY],
-            [loopLeftX, mergeCy],
-            [this.centerX - dSize / 2, mergeCy]
-        ], true, 'arrow-uml');
-
-        // [ else ] exit branch around the right
-        this.addLabel(this.centerX + dSize / 2 + 8, decCy - 11, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-        const exitRightX = Math.max(this.bounds.maxX, this.centerX + 60) + 30;
-        const exitY = loopBottomY + 28;
-
-        this.addPolyline([
-            [this.centerX + dSize / 2, decCy],
-            [exitRightX, decCy],
-            [exitRightX, exitY],
-            [this.centerX, exitY]
-        ], false);
-
-        const nextY = exitY + this.options.nodeGap;
-        this.addLine(this.centerX, exitY, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    // 6. Do-while loop
-    renderDoWhile(stmt) {
-        const dSize = this.options.diamondSize;
-        const mergeCy = this.currentY + dSize / 2;
-        this.addDiamond(this.centerX, mergeCy, dSize);
-
-        const bodyStartY = mergeCy + dSize / 2 + 28;
-        this.addLine(this.centerX, mergeCy + dSize / 2, this.centerX, bodyStartY, true, 'arrow-uml');
-        this.currentY = bodyStartY;
-
-        for (const bodyStmt of (stmt.body || [])) {
-            this.renderStatement(bodyStmt);
-        }
-
-        const decCy = this.currentY + dSize / 2;
-        this.addDiamond(this.centerX, decCy, dSize);
-
-        const guard = this.formatGuard(stmt.condition, 36);
-        const labelY = guard.lines.length > 1 ? decCy - guard.h / 2 - 6 : decCy - 11;
-        this.addLabel(this.centerX + dSize / 2 + 8, labelY, guard.lines, { anchor: 'start', size: 11.5, weight: 'normal' });
-        const loopRightX = Math.max(this.bounds.maxX, this.centerX + 60) + 30;
-
-        // Loop back arrow
-        this.addPolyline([
-            [this.centerX + dSize / 2, decCy],
-            [loopRightX, decCy],
-            [loopRightX, mergeCy],
-            [this.centerX + dSize / 2, mergeCy]
-        ], true, 'arrow-uml');
-
-        this.addLabel(this.centerX + 14, decCy + dSize / 2 + 14, '[ else ]', { anchor: 'start', size: 11.5, weight: 'normal' });
-        const nextY = decCy + dSize / 2 + this.options.nodeGap;
-        this.addLine(this.centerX, decCy + dSize / 2, this.centerX, nextY, true, 'arrow-uml');
-        this.currentY = nextY;
-    }
-
-    getNodeText(node) {
-        if (!node) return '';
-        if (this.options.expressionStyle === 'lecture' && node.simplifiedText) {
-            return node.simplifiedText;
-        }
-        let txt = '';
-        if (node.type === 'output') {
-            txt = node.umlText || `вивід ${node.text || 'y'}`;
-        } else if (node.type === 'input') {
-            txt = node.umlText || `ввід ${node.text || 'x'}`;
-        } else {
-            txt = node.text || node.fullText || (node.raw ? node.raw.replace(/;$/, '') : '');
-        }
-        if (this.options.expressionMode === 'math') {
-            return toMathExpression(txt);
-        }
-        return txt;
-    }
+    `;
+
+    return {
+      svg: svgContent,
+      width: vb.width,
+      height: vb.height,
+    };
+  }
 }
 
 export { UmlRenderer };
