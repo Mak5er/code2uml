@@ -829,6 +829,58 @@ html.dark .code-textarea {
     color: var(--accent);
 }
 
+/* Card Arrow Rule Switcher */
+.card-arrow-switcher {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 1px;
+    gap: 1px;
+    margin-right: 4px;
+}
+
+.btn-card-toggle {
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.3;
+}
+
+.btn-card-toggle:hover {
+    color: var(--text-primary);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .btn-card-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+.btn-card-toggle.active {
+    background-color: var(--bg-surface);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+html.dark .card-arrow-switcher {
+    background-color: #0f172a;
+    border-color: #334155;
+}
+
+html.dark .btn-card-toggle.active {
+    background-color: #334155;
+    color: #60a5fa;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
 .diagram-card-content {
     padding: 28px;
     background-color: #ffffff;
@@ -948,3 +1000,14 @@ html.dark .toast {
     text-align: center;
     user-select: none;
 }
+
+@media (max-width: 900px) {
+    .header-controls {
+        gap: 6px;
+    }
+    .expression-mode-switcher .mode-toggle-btn {
+        padding: 4px 7px;
+        font-size: 11px;
+    }
+}
+

@@ -12,7 +12,9 @@ export default function ViewerPanel({
     onDownloadFcSvg,
     onDownloadFcPng,
     onDownloadUmlSvg,
-    onDownloadUmlPng
+    onDownloadUmlPng,
+    arrowRule = 'all',
+    onToggleArrowRule
 }) {
     const workspaceRef = useRef(null);
     const [zoom, setZoom] = useState(1.0);
@@ -176,12 +178,32 @@ export default function ViewerPanel({
                         <DiagramCard
                             id="cardFlowchart"
                             title="Блок-схема алгоритму"
-                            badge="ГОСТ / ДСТУ 19.701-90"
+                            badge={arrowRule === 'gost' ? 'За ГОСТ 19.701-90' : 'Стрілочки всюди'}
                             svgContent={flowchartSvg}
                             emptyMessage="Введіть C++ код для генерації блок-схеми"
                             onDownloadSvg={onDownloadFcSvg}
                             onDownloadPng={onDownloadFcPng}
                             innerRef={flowchartRef}
+                            extraActions={
+                                <div className="card-arrow-switcher" role="group" aria-label="Стрілочки блок-схеми">
+                                    <button
+                                        type="button"
+                                        className={`btn-card-toggle ${arrowRule === 'all' ? 'active' : ''}`}
+                                        onClick={() => onToggleArrowRule && onToggleArrowRule('all')}
+                                        title="Стрілочки на всіх переходах"
+                                    >
+                                        Всюди
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`btn-card-toggle ${arrowRule === 'gost' ? 'active' : ''}`}
+                                        onClick={() => onToggleArrowRule && onToggleArrowRule('gost')}
+                                        title="За стандартом ГОСТ / ДСТУ 19.701-90"
+                                    >
+                                        По ГОСТу
+                                    </button>
+                                </div>
+                            }
                         />
                     )}
 

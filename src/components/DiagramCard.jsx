@@ -8,7 +8,8 @@ export default function DiagramCard({
     emptyMessage,
     onDownloadSvg,
     onDownloadPng,
-    innerRef
+    innerRef,
+    extraActions
 }) {
     const localContentRef = useRef(null);
     const contentRef = innerRef || localContentRef;
@@ -35,6 +36,7 @@ export default function DiagramCard({
                     {badge && <span className="badge">{badge}</span>}
                 </div>
                 <div className="card-actions">
+                    {extraActions}
                     <button
                         className="btn-card-action"
                         onClick={handleSvgDownload}

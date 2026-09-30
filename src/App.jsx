@@ -9,7 +9,7 @@ import { UmlRenderer } from './renderers/umlRenderer';
 import { exportSvg, exportPng } from './utils/exportUtils';
 import './App.css';
 
-function compileCode(sourceCode, targetFunction, expressionMode = 'cpp') {
+function compileCode(sourceCode, targetFunction, expressionMode = 'cpp', arrowRule = 'all') {
     const trimmed = (sourceCode || '').trim();
     if (!trimmed) {
         return {
@@ -21,8 +21,8 @@ function compileCode(sourceCode, targetFunction, expressionMode = 'cpp') {
             activeFunction: 'main'
         };
     }
-    const ast = parseCppCode(trimmed, { arrowRule: 'all', targetFunction });
-    const fcRenderer = new FlowchartRenderer(ast, { arrowRule: 'all', expressionMode });
+    const ast = parseCppCode(trimmed, { arrowRule, targetFunction });
+    const fcRenderer = new FlowchartRenderer(ast, { arrowRule, expressionMode });
     const fcResult = fcRenderer.render();
     const umlRenderer = new UmlRenderer(ast, { expressionMode });
     const umlResult = umlRenderer.render();
@@ -45,6 +45,14 @@ export default function App() {
             return localStorage.getItem('expressionMode') || 'cpp';
         } catch {
             return 'cpp';
+        }
+    });
+
+    const [arrowRule, setArrowRule] = useState(() => {
+        try {
+            return localStorage.getItem('arrowRule') || 'all';
+        } catch {
+            return 'all';
         }
     });
 
@@ -95,7 +103,7 @@ export default function App() {
     };
 
     // Diagram compilation
-    const generateDiagrams = useCallback((sourceCode, targetFunc = null, silent = false, modeToUse = null) => {
+    const generateDiagrams = useCallback((sourceCode, targetFunc = null, silent = false, modeToUse = null, ruleToUse = null) => {
         const trimmed = (sourceCode || '').trim();
         if (!trimmed) {
             setFlowchartSvg('');
@@ -109,7 +117,8 @@ export default function App() {
         try {
             const funcToUse = targetFunc || selectedFunction;
             const expMode = modeToUse || expressionMode;
-            const res = compileCode(trimmed, funcToUse, expMode);
+            const arrRule = ruleToUse || arrowRule;
+            const res = compileCode(trimmed, funcToUse, expMode, arrRule);
             setFlowchartSvg(res.flowchartSvg);
             setUmlSvg(res.umlSvg);
             setStatus(res.status);
@@ -127,20 +136,29 @@ export default function App() {
                 showToast(`Помилка: ${err.message}`);
             }
         }
-    }, [selectedFunction, expressionMode, showToast]);
+    }, [selectedFunction, expressionMode, arrowRule, showToast]);
 
     const handleToggleExpressionMode = (mode) => {
         setExpressionMode(mode);
         try {
             localStorage.setItem('expressionMode', mode);
         } catch {}
-        generateDiagrams(code, selectedFunction, false, mode);
+        generateDiagrams(code, selectedFunction, false, mode, arrowRule);
         showToast(mode === 'math' ? 'Вирази: Математичний вигляд (дроби, степені)' : 'Вирази: Вигляд C++');
+    };
+
+    const handleToggleArrowRule = (rule) => {
+        setArrowRule(rule);
+        try {
+            localStorage.setItem('arrowRule', rule);
+        } catch {}
+        generateDiagrams(code, selectedFunction, false, expressionMode, rule);
+        showToast(rule === 'gost' ? 'Стрілки: По ГОСТу (ДСТУ 19.701-90)' : 'Стрілки: Всюди (на всіх переходах)');
     };
 
     const handleSelectFunction = (funcName) => {
         setSelectedFunction(funcName);
-        generateDiagrams(code, funcName, false);
+        generateDiagrams(code, funcName, false, expressionMode, arrowRule);
     };
 
     // Debounced compilation when typing
@@ -264,6 +282,8 @@ export default function App() {
                 onSelectFunction={handleSelectFunction}
                 expressionMode={expressionMode}
                 onToggleExpressionMode={handleToggleExpressionMode}
+                arrowRule={arrowRule}
+                onToggleArrowRule={handleToggleArrowRule}
             />
 
             <main className="app-container">
@@ -282,6 +302,8 @@ export default function App() {
                     umlSvg={umlSvg}
                     flowchartRef={flowchartRef}
                     umlRef={umlRef}
+                    arrowRule={arrowRule}
+                    onToggleArrowRule={handleToggleArrowRule}
                     onDownloadFcSvg={(el) => handleDownloadCardSvg(el, 'flowchart')}
                     onDownloadFcPng={(el) => handleDownloadCardPng(el, 'flowchart')}
                     onDownloadUmlSvg={(el) => handleDownloadCardSvg(el, 'uml_activity')}

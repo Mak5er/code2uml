@@ -13,7 +13,9 @@ export default function Header({
     selectedFunction = 'main',
     onSelectFunction,
     expressionMode = 'cpp',
-    onToggleExpressionMode
+    onToggleExpressionMode,
+    arrowRule = 'all',
+    onToggleArrowRule
 }) {
     const [downloadOpen, setDownloadOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -92,6 +94,28 @@ export default function Header({
                         title="Математичний формат формул (дроби з горизонтальною рискою, степені x², корені √)"
                     >
                         <span className="math-sigma-symbol">∑</span> Математика
+                    </button>
+                </div>
+
+                <div className="divider-v" />
+
+                {/* Arrow rule switcher: Everywhere vs GOST standard */}
+                <div className="expression-mode-switcher arrow-rule-switcher" role="group" aria-label="Стрілочки блок-схеми">
+                    <button
+                        type="button"
+                        className={`mode-toggle-btn ${arrowRule === 'all' ? 'active' : ''}`}
+                        onClick={() => onToggleArrowRule && onToggleArrowRule('all')}
+                        title="Стрілочки на всіх переходах між блоками блок-схеми"
+                    >
+                        Стрілочки всюди
+                    </button>
+                    <button
+                        type="button"
+                        className={`mode-toggle-btn ${arrowRule === 'gost' ? 'active' : ''}`}
+                        onClick={() => onToggleArrowRule && onToggleArrowRule('gost')}
+                        title="За стандартом ГОСТ / ДСТУ 19.701-90 (стрілки тільки для ліній знизу вгору та злиття)"
+                    >
+                        По ГОСТу
                     </button>
                 </div>
 
