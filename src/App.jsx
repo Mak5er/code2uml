@@ -336,8 +336,6 @@ export default function App() {
           umlSvg={umlSvg}
           flowchartRef={flowchartRef}
           umlRef={umlRef}
-          arrowRule={arrowRule}
-          onToggleArrowRule={handleToggleArrowRule}
           onDownloadFcSvg={(el) => handleDownloadCardSvg(el, "flowchart")}
           onDownloadFcPng={(el) => handleDownloadCardPng(el, "flowchart")}
           onDownloadUmlSvg={(el) => handleDownloadCardSvg(el, "uml_activity")}

@@ -129,7 +129,7 @@ export default function Header({
             onClick={() => onToggleArrowRule && onToggleArrowRule("all")}
             title="Стрілочки на всіх переходах між блоками блок-схеми"
           >
-            Стрілочки всюди
+            Всюди
           </button>
           <button
             type="button"
@@ -137,7 +137,7 @@ export default function Header({
             onClick={() => onToggleArrowRule && onToggleArrowRule("gost")}
             title="За стандартом ГОСТ / ДСТУ 19.701-90 (стрілки тільки для ліній знизу вгору та злиття)"
           >
-            По ГОСТу
+            ГОСТ
           </button>
         </div>
 
