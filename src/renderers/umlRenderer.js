@@ -10,14 +10,15 @@ import { toMathExpression, parseFraction } from "../utils/mathFormatter.js";
 class UmlRenderer {
   constructor(ast, options = {}) {
     this.ast = ast;
+    const dSize = options.diamondSize || 24;
     this.options = Object.assign(
       {
         expressionStyle: "original", // 'original' (реальний код) or 'lecture' (вираз_1)
         expressionMode: "cpp", // 'cpp' (C++) or 'math' (математичні формули)
         showDeclarations: false,
         nodeGap: 26,
-        diamondSize: 26,
-        mergeDiamondSize: 14,
+        diamondSize: dSize,
+        mergeDiamondSize: options.mergeDiamondSize || dSize,
       },
       options
     );
@@ -238,8 +239,8 @@ class UmlRenderer {
     ];
 
     const gap = this.options.nodeGap;
-    const dw = this.options.diamondSize || 26;
-    const dh = this.options.diamondSize || 26;
+    const dw = this.options.diamondSize || 24;
+    const dh = this.options.diamondSize || 24;
     const branchSpacing = 34;
 
     const b0W = branches[0].layout.w > 0 ? branches[0].layout.w : Math.max(36, dw / 2 + 10);
@@ -264,7 +265,8 @@ class UmlRenderer {
     const totalW = Math.max(r, diamondX + dw / 2) + vShift;
     const topGap = dh + gap;
     const maxBranchH = Math.max(branches[0].layout.h, branches[1].layout.h);
-    const mergeDiamondR = (this.options.mergeDiamondSize || 14) / 2;
+    const mSize = this.options.mergeDiamondSize || dw;
+    const mergeDiamondR = mSize / 2;
     const mergeY = topGap + maxBranchH + gap + mergeDiamondR;
     const totalH = mergeY + mergeDiamondR;
     const totalCx = diamondX + vShift;
@@ -337,8 +339,8 @@ class UmlRenderer {
           }
         });
 
-        // Merge Diamond (14x14)
-        const mSize = this.options.mergeDiamondSize || 14;
+        // Merge Diamond
+        const mSize = this.options.mergeDiamondSize || dw;
         this.bounds.addRect(k - mSize / 2, topY + mergeY - mSize / 2, mSize, mSize);
         this.elements.push(SVG.umlDiamond(k, topY + mergeY, mSize));
       },
@@ -353,8 +355,8 @@ class UmlRenderer {
     }
     const bodyLayout = this.layoutNodeList(bodyItems);
     const gap = this.options.nodeGap;
-    const mSize = this.options.mergeDiamondSize || 14;
-    const dSize = this.options.diamondSize || 26;
+    const dSize = this.options.diamondSize || 24;
+    const mSize = this.options.mergeDiamondSize || dSize;
     const guard = this.formatGuard(condText);
 
     const loopMarginLeft = 32;
@@ -438,8 +440,8 @@ class UmlRenderer {
     const condText = stmt.condition;
     const bodyLayout = this.layoutNodeList(stmt.body || []);
     const gap = this.options.nodeGap;
-    const mSize = this.options.mergeDiamondSize || 14;
-    const dSize = this.options.diamondSize || 26;
+    const dSize = this.options.diamondSize || 24;
+    const mSize = this.options.mergeDiamondSize || dSize;
     const guard = this.formatGuard(condText);
 
     const loopMarginLeft = 32;
@@ -522,9 +524,10 @@ class UmlRenderer {
   layoutSwitch(stmt) {
     const cases = stmt.cases || [];
     const gap = this.options.nodeGap;
-    const dw = this.options.diamondSize || 26;
-    const dh = this.options.diamondSize || 26;
-    const mR = (this.options.mergeDiamondSize || 14) / 2;
+    const dw = this.options.diamondSize || 24;
+    const dh = this.options.diamondSize || 24;
+    const mSize = this.options.mergeDiamondSize || dw;
+    const mR = mSize / 2;
 
     const caseBranches = cases.map((c) => ({
       label: `[ ${c.labels ? c.labels.join(", ") : c.label || "?"} ]`,
