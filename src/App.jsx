@@ -7,6 +7,7 @@ import { parseCppCode } from "./parser/cppParser";
 import { FlowchartRenderer } from "./renderers/flowchartRenderer";
 import { UmlRenderer } from "./renderers/umlRenderer";
 import { exportSvg, exportPng } from "./utils/exportUtils";
+import { PRESETS } from "./constants/presets";
 import "./App.css";
 
 function compileCode(
@@ -14,6 +15,8 @@ function compileCode(
   targetFunction,
   expressionMode = "cpp",
   arrowRule = "gost",
+  columns = "auto",
+  ioLabels = "clean",
 ) {
   const trimmed = (sourceCode || "").trim();
   if (!trimmed) {
@@ -27,9 +30,9 @@ function compileCode(
     };
   }
   const ast = parseCppCode(trimmed, { arrowRule, targetFunction });
-  const fcRenderer = new FlowchartRenderer(ast, { arrowRule, expressionMode });
+  const fcRenderer = new FlowchartRenderer(ast, { arrowRule, expressionMode, columns, ioLabels });
   const fcResult = fcRenderer.render();
-  const umlRenderer = new UmlRenderer(ast, { expressionMode });
+  const umlRenderer = new UmlRenderer(ast, { expressionMode, columns });
   const umlResult = umlRenderer.render();
   const funcLabel =
     ast.functions && ast.functions.length > 1
@@ -47,6 +50,7 @@ function compileCode(
 
 export default function App() {
   const [code, setCode] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState("");
 
   const [expressionMode, setExpressionMode] = useState(() => {
     try {
@@ -61,6 +65,25 @@ export default function App() {
       return localStorage.getItem("arrowRule") || "gost";
     } catch {
       return "gost";
+    }
+  });
+
+  const [columnsMode, setColumnsMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem("columnsMode");
+      if (saved === "1") return 1;
+      if (saved === "2") return 2;
+      return saved || "auto";
+    } catch {
+      return "auto";
+    }
+  });
+
+  const [ioLabelsMode, setIoLabelsMode] = useState(() => {
+    try {
+      return localStorage.getItem("ioLabelsMode") || "clean";
+    } catch {
+      return "clean";
     }
   });
 
@@ -121,6 +144,8 @@ export default function App() {
       silent = false,
       modeToUse = null,
       ruleToUse = null,
+      colsToUse = null,
+      ioToUse = null,
     ) => {
       const trimmed = (sourceCode || "").trim();
       if (!trimmed) {
@@ -136,7 +161,9 @@ export default function App() {
         const funcToUse = targetFunc || selectedFunction;
         const expMode = modeToUse || expressionMode;
         const arrRule = ruleToUse || arrowRule;
-        const res = compileCode(trimmed, funcToUse, expMode, arrRule);
+        const cols = colsToUse !== null && colsToUse !== undefined ? colsToUse : columnsMode;
+        const ioLabels = ioToUse || ioLabelsMode;
+        const res = compileCode(trimmed, funcToUse, expMode, arrRule, cols, ioLabels);
         setFlowchartSvg(res.flowchartSvg);
         setUmlSvg(res.umlSvg);
         setStatus(res.status);
@@ -155,15 +182,24 @@ export default function App() {
         }
       }
     },
-    [selectedFunction, expressionMode, arrowRule, showToast],
+    [selectedFunction, expressionMode, arrowRule, columnsMode, ioLabelsMode, showToast],
   );
+
+  const handleSelectPreset = (presetId) => {
+    const preset = PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setSelectedPreset(preset.id);
+    setCode(preset.code);
+    generateDiagrams(preset.code, null, false);
+    showToast(`✓ Завантажено: ${preset.label}`);
+  };
 
   const handleToggleExpressionMode = (mode) => {
     setExpressionMode(mode);
     try {
       localStorage.setItem("expressionMode", mode);
     } catch {}
-    generateDiagrams(code, selectedFunction, false, mode, arrowRule);
+    generateDiagrams(code, selectedFunction, false, mode, arrowRule, columnsMode, ioLabelsMode);
     showToast(
       mode === "math"
         ? "Вирази: Математичний вигляд (дроби, степені)"
@@ -176,7 +212,7 @@ export default function App() {
     try {
       localStorage.setItem("arrowRule", rule);
     } catch {}
-    generateDiagrams(code, selectedFunction, false, expressionMode, rule);
+    generateDiagrams(code, selectedFunction, false, expressionMode, rule, columnsMode, ioLabelsMode);
     showToast(
       rule === "gost"
         ? "Стрілки: По ГОСТу (ДСТУ 19.701-90)"
@@ -184,14 +220,48 @@ export default function App() {
     );
   };
 
+  const handleToggleColumnsMode = (mode) => {
+    setColumnsMode(mode);
+    try {
+      localStorage.setItem("columnsMode", String(mode));
+    } catch {}
+    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, mode, ioLabelsMode);
+    showToast(
+      mode === "auto"
+        ? "Колонки: Авто (2 колонки для великих циклів)"
+        : mode === 2
+          ? "Колонки: 2 колонки (з'єднувач 1)"
+          : "Колонки: 1 колонка",
+    );
+  };
+
+  const handleToggleIoLabelsMode = (mode) => {
+    setIoLabelsMode(mode);
+    try {
+      localStorage.setItem("ioLabelsMode", mode);
+    } catch {}
+    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, columnsMode, mode);
+    showToast(
+      mode === "prefix"
+        ? "Ввід/Вивід: Зі словами (ввід N / вивід P)"
+        : "Ввід/Вивід: Тільки змінні за ГОСТ (N / P)",
+    );
+  };
+
   const handleSelectFunction = (funcName) => {
     setSelectedFunction(funcName);
-    generateDiagrams(code, funcName, false, expressionMode, arrowRule);
+    generateDiagrams(code, funcName, false, expressionMode, arrowRule, columnsMode, ioLabelsMode);
   };
 
   // Debounced compilation when typing
   const handleCodeChange = (newCode) => {
     setCode(newCode);
+    if (selectedPreset) {
+      const activePreset = PRESETS.find((p) => p.id === selectedPreset);
+      if (activePreset && activePreset.code !== newCode) {
+        setSelectedPreset("");
+      }
+    }
     clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       generateDiagrams(newCode, null, true);
@@ -200,6 +270,7 @@ export default function App() {
 
   const handleClearCode = () => {
     setCode("");
+    setSelectedPreset("");
     setFlowchartSvg("");
     setUmlSvg("");
     setFunctions([]);
@@ -318,6 +389,10 @@ export default function App() {
         onToggleExpressionMode={handleToggleExpressionMode}
         arrowRule={arrowRule}
         onToggleArrowRule={handleToggleArrowRule}
+        columnsMode={columnsMode}
+        onToggleColumnsMode={handleToggleColumnsMode}
+        ioLabelsMode={ioLabelsMode}
+        onToggleIoLabelsMode={handleToggleIoLabelsMode}
       />
 
       <main className="app-container">
@@ -327,6 +402,9 @@ export default function App() {
           onClear={handleClearCode}
           onGenerate={() => generateDiagrams(code, false)}
           status={status}
+          presets={PRESETS}
+          selectedPreset={selectedPreset}
+          onSelectPreset={handleSelectPreset}
         />
 
         <ViewerPanel

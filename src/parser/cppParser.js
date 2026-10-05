@@ -27,7 +27,12 @@ class CppTokenizer {
                     this.pos++;
                 }
                 const text = this.source.slice(start, this.pos).trim();
-                tokens.push({ type: 'COMMENT', value: text });
+                const splitMatch = text.match(/^\/\/\s*(?:\[\s*(?:split|col|column|connector|page|з'єднувач|з’єднувач|розділ|розрив)(?::\s*([^\]]+))?\s*\]|@(?:split|connector|page)\s*(\S+)?|---\s*(?:split|break)\s*---)/i);
+                if (splitMatch) {
+                    tokens.push({ type: 'SPLIT_DIRECTIVE', label: (splitMatch[1] || splitMatch[2] || '').trim() || null });
+                } else {
+                    tokens.push({ type: 'COMMENT', value: text });
+                }
                 continue;
             }
 
@@ -39,7 +44,12 @@ class CppTokenizer {
                 }
                 this.pos += 2;
                 const text = this.source.slice(start, this.pos).trim();
-                tokens.push({ type: 'COMMENT_BLOCK', value: text });
+                const splitMatch = text.match(/^\/\*\s*\[\s*(?:split|col|column|connector|page|з'єднувач|з’єднувач|розділ|розрив)(?::\s*([^\]]+))?\s*\]\s*\*\/$/i);
+                if (splitMatch) {
+                    tokens.push({ type: 'SPLIT_DIRECTIVE', label: (splitMatch[1] || '').trim() || null });
+                } else {
+                    tokens.push({ type: 'COMMENT_BLOCK', value: text });
+                }
                 continue;
             }
 
@@ -343,6 +353,14 @@ class CppParser {
 
         const t = this.peek();
 
+        if (t.type === 'SPLIT_DIRECTIVE') {
+            this.consume();
+            return {
+                type: 'split',
+                label: t.label || null
+            };
+        }
+
         if (t.type === 'IDENTIFIER' && t.value === 'if') {
             return this.parseIf();
         }
@@ -424,28 +442,69 @@ class CppParser {
         }
         if (this.match('SYMBOL', ';')) this.consume();
 
-        const hasAssignment = declTokens.some(t => t.value === '=');
-        if (hasAssignment) {
-            const formatted = this.formatExpression(declTokens);
-            return {
-                type: 'process',
-                raw: `${typeToken.value} ${formatted};`,
-                text: formatted,
-                simplifiedText: formatted
-            };
+        // Split by comma at top-level paren/bracket depth
+        const declarators = [];
+        let cur = [];
+        let parenDepth = 0;
+        for (const t of declTokens) {
+            if (['(', '{', '['].includes(t.value)) parenDepth++;
+            else if ([')', '}', ']'].includes(t.value)) parenDepth--;
+            else if (t.value === ',' && parenDepth === 0) {
+                if (cur.length > 0) declarators.push(cur);
+                cur = [];
+                continue;
+            }
+            cur.push(t);
+        }
+        if (cur.length > 0) declarators.push(cur);
+
+        const assignments = [];
+        for (const decl of declarators) {
+            const eqIdx = decl.findIndex(t => t.value === '=');
+            if (eqIdx !== -1) {
+                const varTokens = decl.slice(0, eqIdx);
+                const exprTokens = decl.slice(eqIdx + 1);
+                const varName = varTokens.map(t => t.value).join('');
+                const exprText = this.formatExpression(exprTokens);
+                assignments.push({ varName, exprText, decl });
+            }
         }
 
-        if (this.options.showDeclarations) {
-            const vars = declTokens.filter(t => t.type === 'IDENTIFIER').map(t => t.value);
-            return {
-                type: 'process',
-                raw: `${typeToken.value} ${vars.join(', ')};`,
-                text: `${typeToken.value} ${vars.join(', ')}`,
-                simplifiedText: `${typeToken.value} ${vars.join(', ')}`
-            };
+        if (assignments.length === 0) {
+            if (this.options.showDeclarations) {
+                const vars = declTokens.filter(t => t.type === 'IDENTIFIER').map(t => t.value);
+                return {
+                    type: 'process',
+                    raw: `${typeToken.value} ${vars.join(', ')};`,
+                    text: `${typeToken.value} ${vars.join(', ')}`,
+                    simplifiedText: `${typeToken.value} ${vars.join(', ')}`
+                };
+            }
+            return null;
         }
 
-        return null;
+        // If declaration mixes uninitialized variables with dummy initializations (e.g. double xp, xk, x, dx, eps, a=0, R=0, S=0),
+        // the uninitialized variables prove it is a variable declaration list, and dummy 0 initializations are C++ boilerplate.
+        const hasUninitialized = declarators.some(d => !d.some(t => t.value === '='));
+        const allDummyZero = assignments.every(a => ['0', '0.0', '0.f', 'NULL', 'nullptr', '""', "''"].includes(a.exprText.trim()));
+        if (hasUninitialized && allDummyZero) {
+            return null;
+        }
+
+        const processNodes = assignments.map(a => {
+            const cleanText = `${a.varName} = ${a.exprText}`;
+            return {
+                type: 'process',
+                raw: `${cleanText};`,
+                target: a.varName,
+                expr: a.exprText,
+                text: cleanText,
+                simplifiedText: cleanText,
+                isDeclarationAssignment: true
+            };
+        });
+
+        return processNodes.length === 1 ? processNodes[0] : processNodes;
     }
 
     parseGetline() {
@@ -551,11 +610,24 @@ class CppParser {
         ]);
         const paramManipulators = new Set(['setw', 'setprecision', 'setfill', 'setbase']);
 
-        const meaningfulExprs = [];
-        const meaningfulStrings = [];
+        const orderedItems = [];
         let hasNonString = false;
-
         let hasTableFormatting = false;
+
+        // Check if there are non-string expressions in this cout statement
+        let hasUpcomingNonString = false;
+        for (const p of parts) {
+            let firstIdx = 0;
+            if (p.length >= 3 && p[0].value === 'std' && p[1].value === '::') {
+                firstIdx = 2;
+            }
+            const leadVal = p[firstIdx]?.value;
+            if (manipulators.has(leadVal)) continue;
+            if (p.length - firstIdx >= 3 && paramManipulators.has(leadVal)) continue;
+            if (p.length === 1 && p[0].type === 'STRING') continue;
+            hasUpcomingNonString = true;
+            break;
+        }
 
         for (const p of parts) {
             if (p.length === 0) continue;
@@ -586,41 +658,38 @@ class CppParser {
                     hasTableFormatting = true;
                     continue;
                 }
-                meaningfulStrings.push(p[0].value);
+                // Skip prompt label prefix if followed by non-string expressions (e.g. "x = ", "S = ")
+                if (hasUpcomingNonString && (inner.endsWith('=') || inner.endsWith(':'))) {
+                    continue;
+                }
+                orderedItems.push(p[0].value);
                 continue;
             }
 
             // Expressions (variables, math, function calls)
             const exprText = this.formatExpression(p);
             if (exprText) {
-                meaningfulExprs.push(exprText);
+                orderedItems.push(exprText);
                 hasNonString = true;
             }
         }
 
-        // If all parts were manipulators or decorative table dividers, omit this statement
-        if (meaningfulExprs.length === 0 && meaningfulStrings.length === 0) {
+        if (orderedItems.length === 0) {
             return null;
         }
 
-        // If it had table formatting and zero non-strings, it's a console table header (e.g. cout << "|" << setw(5) << "x" << "|" ...)
         if (!hasNonString && hasTableFormatting) {
             return null;
         }
 
-        let simpleText = '';
-        if (hasNonString) {
-            simpleText = meaningfulExprs.join(', ');
-        } else {
-            simpleText = meaningfulStrings.join(', ');
-        }
+        const simpleText = orderedItems.join(', ');
 
         return {
             type: 'output',
             raw: `cout << ...;`,
             text: simpleText,
             umlText: `вивід ${simpleText}`,
-            fullText: [...meaningfulStrings, ...meaningfulExprs].join(' '),
+            fullText: simpleText,
             isPromptCandidate: !hasNonString
         };
     }
@@ -1061,11 +1130,42 @@ class CppParser {
             }
         }
 
+        // 2b. Remove dead declaration assignments before input/loops if reassigned before read
+        const activeStmts = [];
+        for (let i = 0; i < afterPrompts.length; i++) {
+            const curr = afterPrompts[i];
+            if (curr && curr.type === 'process' && curr.isDeclarationAssignment && ['0', '0.0', '0.f', 'NULL', 'nullptr'].includes(curr.expr?.trim())) {
+                const targetVar = curr.target;
+                if (targetVar) {
+                    let isReassignedBeforeRead = false;
+                    for (let k = i + 1; k < afterPrompts.length; k++) {
+                        const nextS = afterPrompts[k];
+                        if (nextS.type === 'input' && nextS.variables && nextS.variables.includes(targetVar)) {
+                            isReassignedBeforeRead = true;
+                            break;
+                        }
+                        if (nextS.type === 'while' || nextS.type === 'for' || nextS.type === 'do_while') {
+                            const body = nextS.body || [];
+                            const reassign = body.some(b => b.type === 'process' && b.target === targetVar && !b.raw?.includes('+=') && !b.raw?.includes('-=') && !b.raw?.includes('*=') && !b.raw?.includes('/='));
+                            if (reassign) {
+                                isReassignedBeforeRead = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isReassignedBeforeRead) {
+                        continue;
+                    }
+                }
+            }
+            activeStmts.push(curr);
+        }
+
         // 3. Merge consecutive input statements into a single input node ("ввід a, b, c, d")
         const merged = [];
         let i = 0;
-        while (i < afterPrompts.length) {
-            const curr = afterPrompts[i];
+        while (i < activeStmts.length) {
+            const curr = activeStmts[i];
             if (curr.type === 'input') {
                 const combinedVars = [];
                 if (curr.variables && curr.variables.length > 0) {
@@ -1075,8 +1175,8 @@ class CppParser {
                 }
 
                 let j = i + 1;
-                while (j < afterPrompts.length && afterPrompts[j].type === 'input') {
-                    const nextInput = afterPrompts[j];
+                while (j < activeStmts.length && activeStmts[j].type === 'input') {
+                    const nextInput = activeStmts[j];
                     if (nextInput.variables && nextInput.variables.length > 0) {
                         combinedVars.push(...nextInput.variables);
                     } else if (nextInput.text) {

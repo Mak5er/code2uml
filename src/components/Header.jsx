@@ -24,6 +24,10 @@ export default function Header({
   onToggleExpressionMode,
   arrowRule = "gost",
   onToggleArrowRule,
+  columnsMode = "auto",
+  onToggleColumnsMode,
+  ioLabelsMode = "clean",
+  onToggleIoLabelsMode,
 }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -138,6 +142,66 @@ export default function Header({
             title="За стандартом ГОСТ / ДСТУ 19.701-90 (стрілки тільки для ліній знизу вгору та злиття)"
           >
             ГОСТ
+          </button>
+        </div>
+
+        <div className="divider-v" />
+
+        {/* Columns switcher: Auto vs 1 column vs 2 columns */}
+        <div
+          className="expression-mode-switcher columns-switcher"
+          role="group"
+          aria-label="Кількість колонок"
+        >
+          <button
+            type="button"
+            className={`mode-toggle-btn ${columnsMode === "auto" ? "active" : ""}`}
+            onClick={() => onToggleColumnsMode && onToggleColumnsMode("auto")}
+            title="Автоматично: 2 колонки зі з'єднувачем (1) для великих циклів (4.1)"
+          >
+            Авто-кол
+          </button>
+          <button
+            type="button"
+            className={`mode-toggle-btn ${columnsMode === 1 ? "active" : ""}`}
+            onClick={() => onToggleColumnsMode && onToggleColumnsMode(1)}
+            title="1 довга колонка"
+          >
+            1 кол
+          </button>
+          <button
+            type="button"
+            className={`mode-toggle-btn ${columnsMode === 2 ? "active" : ""}`}
+            onClick={() => onToggleColumnsMode && onToggleColumnsMode(2)}
+            title="2 колонки зі з'єднувачем (1)"
+          >
+            2 кол (1)
+          </button>
+        </div>
+
+        <div className="divider-v" />
+
+        {/* IO Labels switcher: Clean variables (GOST) vs Verbal prefix (ввід / вивід) */}
+        <div
+          className="expression-mode-switcher io-labels-switcher"
+          role="group"
+          aria-label="Підписи вводу/виводу"
+        >
+          <button
+            type="button"
+            className={`mode-toggle-btn ${ioLabelsMode === "clean" ? "active" : ""}`}
+            onClick={() => onToggleIoLabelsMode && onToggleIoLabelsMode("clean")}
+            title="Тільки змінні за ГОСТ (k, N / S)"
+          >
+            ГОСТ: N, P
+          </button>
+          <button
+            type="button"
+            className={`mode-toggle-btn ${ioLabelsMode === "prefix" ? "active" : ""}`}
+            onClick={() => onToggleIoLabelsMode && onToggleIoLabelsMode("prefix")}
+            title="Зі словами (ввід N / вивід P)"
+          >
+            ввід N, вивід P
           </button>
         </div>
 

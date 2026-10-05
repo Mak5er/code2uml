@@ -45,9 +45,9 @@ class FlowchartRenderer {
     }
     let txt = "";
     if (node.type === "output") {
-      txt = node.umlText || `вивід ${node.text || "y"}`;
+      txt = this.options.ioLabels === "prefix" ? (node.umlText || `вивід ${node.text || "y"}`) : (node.text || "y");
     } else if (node.type === "input") {
-      txt = node.umlText || `ввід ${node.text || "x"}`;
+      txt = this.options.ioLabels === "prefix" ? (node.umlText || `ввід ${node.text || "x"}`) : (node.text || "x");
     } else {
       txt = node.text || node.fullText || (node.raw ? node.raw.replace(/;$/, "") : "");
     }
@@ -99,7 +99,9 @@ class FlowchartRenderer {
         const frac = this.checkFraction(node);
         if (frac) {
           const charW = 8.2;
-          const leftPart = frac.target ? `${frac.target} = ${frac.prefix}` : frac.prefix;
+          const sep = (frac.target === 'return' || /[-+*/]?=$/.test(frac.target)) ? ' ' : ' = ';
+          const formattedTarget = frac.target ? frac.target.replace(/\*/g, '·') : '';
+          const leftPart = formattedTarget ? `${formattedTarget}${sep}${frac.prefix}` : frac.prefix;
           const leftW = leftPart ? leftPart.length * charW : 0;
           const rightW = frac.suffix ? frac.suffix.length * charW : 0;
           const numW = frac.numText.length * 8.0;
@@ -614,17 +616,17 @@ class FlowchartRenderer {
     const plusLabel = this.options.branchLabels === "yes_no" ? "Так" : "+";
     const minusLabel = this.options.branchLabels === "yes_no" ? "Ні" : "−";
 
-    const loopMarginLeft = 32;
-    const loopMarginRight = 36;
-    const innerLeft = Math.max(dw / 2, bodyLayout.cx);
-    const innerRight = Math.max(dw / 2, bodyLayout.w - bodyLayout.cx);
-    const totalW = loopMarginLeft + innerLeft + innerRight + loopMarginRight;
-    const axisX = loopMarginLeft + innerLeft;
+    const exitMarginLeft = 32;
+    const axisX = exitMarginLeft + dw / 2;
+    const branchSpacing = 36;
+    const bodyCx = axisX + dw / 2 + branchSpacing + bodyLayout.cx;
+    const loopRightMargin = 28;
+    const totalW = bodyCx + (bodyLayout.w - bodyLayout.cx) + loopRightMargin;
 
-    const decCy = dh / 2;
-    const bodyTopY = decCy + dh / 2 + gap;
+    const decCy = dh / 2 + 10;
+    const bodyTopY = decCy + 14;
     const bodyBottomY = bodyTopY + bodyLayout.h;
-    const totalH = bodyBottomY + gap;
+    const totalH = Math.max(bodyBottomY + 14, decCy + dh / 2 + 20) + gap;
 
     return {
       w: totalW,
@@ -634,54 +636,56 @@ class FlowchartRenderer {
         const k = ox + axisX;
         const marker = "arrow-flow";
 
-        // Decision Rhombus
-        this.bounds.addRect(k - dw / 2, oy, dw, dh);
-        this.elements.push(SVG.rhombus(k, oy + decCy, dw, dh, rhDim.lines));
-
-        // Line down to body (+)
-        const labelY = oy + decCy + dh / 2 + 13;
-        this.bounds.addText(k + 8, labelY, plusLabel, { anchor: "start", size: 14 });
-        this.elements.push(SVG.label(k + 8, labelY, plusLabel, { anchor: "start", size: 14, weight: "bold" }));
-
-        this.bounds.addPoint(k, oy + decCy + dh / 2);
-        this.bounds.addPoint(k, oy + bodyTopY);
+        // Vertical line from (k, oy) into top vertex of Rhombus
+        this.bounds.addPoint(k, oy);
+        this.bounds.addPoint(k, oy + decCy - dh / 2);
         this.elements.push(
-          SVG.line(
-            k,
-            oy + decCy + dh / 2,
-            k,
-            oy + bodyTopY,
-            this.shouldDrawArrow("down"),
-            marker
-          )
+          SVG.line(k, oy, k, oy + decCy - dh / 2, this.shouldDrawArrow("down"), marker)
         );
 
-        // Render body
-        bodyLayout.render(k - bodyLayout.cx, oy + bodyTopY);
+        // Decision Rhombus
+        this.bounds.addRect(k - dw / 2, oy + decCy - dh / 2, dw, dh);
+        this.elements.push(SVG.rhombus(k, oy + decCy, dw, dh, rhDim.lines));
 
-        // Loopback line around left into top of rhombus
-        const loopLeftX = ox + 8;
+        // '+' branch exits RIGHT vertex, turns down into top of body
+        const bodyX = ox + bodyCx;
+        const bodyY = oy + bodyTopY;
+
+        this.bounds.addText(k + dw / 2 + 8, oy + decCy - 6, plusLabel, { anchor: "start", size: 14 });
+        this.elements.push(SVG.label(k + dw / 2 + 8, oy + decCy - 6, plusLabel, { anchor: "start", size: 14, weight: "bold" }));
+
+        const plusPts = [
+          [k + dw / 2, oy + decCy],
+          [bodyX, oy + decCy],
+          [bodyX, bodyY],
+        ];
+        plusPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+        this.elements.push(SVG.polyline(plusPts, this.shouldDrawArrow("down"), marker));
+
+        // Render body
+        bodyLayout.render(bodyX - bodyLayout.cx, bodyY);
+
+        // Loopback line from bottom of body around RIGHT, up to oy, then left into k
+        const loopRightX = ox + totalW - 8;
         const loopPts = [
-          [k, oy + bodyBottomY],
-          [k, oy + bodyBottomY + 12],
-          [loopLeftX, oy + bodyBottomY + 12],
-          [loopLeftX, oy - 12],
-          [k, oy - 12],
+          [bodyX, oy + bodyBottomY],
+          [bodyX, oy + bodyBottomY + 12],
+          [loopRightX, oy + bodyBottomY + 12],
+          [loopRightX, oy],
           [k, oy],
         ];
         loopPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
-        this.elements.push(SVG.polyline(loopPts, this.shouldDrawArrow("down"), marker));
+        this.elements.push(SVG.polyline(loopPts, true, marker));
 
-        // False branch (-) around right
-        const exitRightX = ox + totalW - 8;
-        const exitLabelX = k + dw / 2 + 8;
-        this.bounds.addText(exitLabelX, oy + decCy - 6, minusLabel, { anchor: "start", size: 14 });
-        this.elements.push(SVG.label(exitLabelX, oy + decCy - 6, minusLabel, { anchor: "start", size: 14, weight: "bold" }));
+        // '-' branch exits LEFT vertex, goes left to exitLeftX, down to totalH, then right to k
+        const exitLeftX = ox + 8;
+        this.bounds.addText(k - dw / 2 - 8, oy + decCy - 6, minusLabel, { anchor: "end", size: 14 });
+        this.elements.push(SVG.label(k - dw / 2 - 8, oy + decCy - 6, minusLabel, { anchor: "end", size: 14, weight: "bold" }));
 
         const exitPts = [
-          [k + dw / 2, oy + decCy],
-          [exitRightX, oy + decCy],
-          [exitRightX, oy + totalH],
+          [k - dw / 2, oy + decCy],
+          [exitLeftX, oy + decCy],
+          [exitLeftX, oy + totalH],
           [k, oy + totalH],
         ];
         exitPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
@@ -702,16 +706,17 @@ class FlowchartRenderer {
     const plusLabel = this.options.branchLabels === "yes_no" ? "Так" : "+";
     const minusLabel = this.options.branchLabels === "yes_no" ? "Ні" : "−";
 
-    const loopMarginLeft = 32;
+    const exitMarginLeft = 32;
     const innerLeft = Math.max(dw / 2, bodyLayout.cx);
     const innerRight = Math.max(dw / 2, bodyLayout.w - bodyLayout.cx);
-    const totalW = loopMarginLeft + innerLeft + innerRight + 16;
-    const axisX = loopMarginLeft + innerLeft;
+    const loopMarginRight = 32;
+    const totalW = exitMarginLeft + innerLeft + innerRight + loopMarginRight;
+    const axisX = exitMarginLeft + innerLeft;
 
     const bodyTopY = gap;
     const bodyBottomY = bodyTopY + bodyLayout.h;
     const decCy = bodyBottomY + gap + dh / 2;
-    const totalH = decCy + dh / 2;
+    const totalH = decCy + dh / 2 + gap;
 
     return {
       w: totalW,
@@ -721,7 +726,7 @@ class FlowchartRenderer {
         const k = ox + axisX;
         const marker = "arrow-flow";
 
-        // Line to body
+        // Line to body from (k, oy)
         this.bounds.addPoint(k, oy);
         this.bounds.addPoint(k, oy + bodyTopY);
         this.elements.push(
@@ -749,24 +754,35 @@ class FlowchartRenderer {
         this.bounds.addRect(k - dw / 2, oy + decCy - dh / 2, dw, dh);
         this.elements.push(SVG.rhombus(k, oy + decCy, dw, dh, rhDim.lines));
 
-        // Loopback around left to top (+)
-        const loopLeftX = ox + 8;
-        const labelX = k - dw / 2 - 8;
-        this.bounds.addText(labelX, oy + decCy - 6, plusLabel, { anchor: "end", size: 14 });
-        this.elements.push(SVG.label(labelX, oy + decCy - 6, plusLabel, { anchor: "end", size: 14, weight: "bold" }));
+        // Loopback around RIGHT to top (+)
+        const loopRightX = ox + totalW - 8;
+        const labelX = k + dw / 2 + 8;
+        this.bounds.addText(labelX, oy + decCy - 6, plusLabel, { anchor: "start", size: 14 });
+        this.elements.push(SVG.label(labelX, oy + decCy - 6, plusLabel, { anchor: "start", size: 14, weight: "bold" }));
 
         const loopPts = [
-          [k - dw / 2, oy + decCy],
-          [loopLeftX, oy + decCy],
-          [loopLeftX, oy],
+          [k + dw / 2, oy + decCy],
+          [loopRightX, oy + decCy],
+          [loopRightX, oy],
           [k, oy],
         ];
         loopPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
-        this.elements.push(SVG.polyline(loopPts, this.shouldDrawArrow("right"), marker));
+        this.elements.push(SVG.polyline(loopPts, true, marker));
 
-        // False branch (-) exits down
-        this.bounds.addText(k + 8, oy + decCy + dh / 2 + 13, minusLabel, { anchor: "start", size: 14 });
-        this.elements.push(SVG.label(k + 8, oy + decCy + dh / 2 + 13, minusLabel, { anchor: "start", size: 14, weight: "bold" }));
+        // False branch (-) exits left, down, and rejoins at totalH
+        const exitLeftX = ox + 8;
+        const exitLabelX = k - dw / 2 - 8;
+        this.bounds.addText(exitLabelX, oy + decCy - 6, minusLabel, { anchor: "end", size: 14 });
+        this.elements.push(SVG.label(exitLabelX, oy + decCy - 6, minusLabel, { anchor: "end", size: 14, weight: "bold" }));
+
+        const exitPts = [
+          [k - dw / 2, oy + decCy],
+          [exitLeftX, oy + decCy],
+          [exitLeftX, oy + totalH],
+          [k, oy + totalH],
+        ];
+        exitPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
+        this.elements.push(SVG.polyline(exitPts, false, marker));
       },
     };
   }
@@ -776,11 +792,14 @@ class FlowchartRenderer {
     if (stmt.init) {
       items.push({ type: "process", text: stmt.init });
     }
+    const forBody = [...(stmt.body || [])];
+    if (stmt.step) {
+      forBody.push({ type: "process", text: stmt.step });
+    }
     items.push({
       type: "while",
       condition: stmt.condition,
-      body: stmt.body || [],
-      step: stmt.step,
+      body: forBody,
     });
     return this.layoutNodeList(items);
   }
@@ -914,6 +933,101 @@ class FlowchartRenderer {
     return this.layoutSeq(items);
   }
 
+  layoutConnector(label = "1") {
+    const r = 13;
+    const w = r * 2 + 10;
+    const h = r * 2;
+    return {
+      w,
+      h,
+      cx: w / 2,
+      render: (ox, oy) => {
+        const cx = ox + w / 2;
+        const cy = oy + r;
+        this.bounds.addRect(cx - r, cy - r, r * 2, r * 2);
+        this.elements.push(SVG.connector(cx, cy, label, r));
+      },
+    };
+  }
+
+  shouldUseTwoColumns(ast) {
+    let loopCount = 0;
+    for (const stmt of ast) {
+      if (stmt.type === "while" || stmt.type === "do_while" || stmt.type === "for") {
+        loopCount++;
+      }
+    }
+    return loopCount >= 3;
+  }
+
+  splitForTwoColumns(ast) {
+    const loopIndices = [];
+    ast.forEach((stmt, idx) => {
+      if (stmt.type === "while" || stmt.type === "do_while" || stmt.type === "for") {
+        loopIndices.push(idx);
+      }
+    });
+
+    let splitIdx = Math.ceil(ast.length / 2);
+    if (loopIndices.length >= 3) {
+      // For 4 loops (like 4.1), split after the second loop and its following output
+      const secondLoopIdx = loopIndices[1];
+      for (let i = secondLoopIdx + 1; i < ast.length; i++) {
+        if (ast[i].type === "output") {
+          splitIdx = i + 1;
+          break;
+        }
+      }
+    }
+
+    return {
+      col1: ast.slice(0, splitIdx),
+      col2: ast.slice(splitIdx),
+    };
+  }
+
+  splitAstIntoColumns(ast) {
+    const hasExplicitSplit = ast.some((stmt) => stmt.type === "split");
+    if (hasExplicitSplit) {
+      const cols = [];
+      let currentStmts = [];
+      let splitCounter = 1;
+
+      for (let i = 0; i < ast.length; i++) {
+        const stmt = ast[i];
+        if (stmt.type === "split") {
+          const label = stmt.label || String(splitCounter++);
+          cols.push({
+            stmts: currentStmts,
+            nextConnectorLabel: label,
+          });
+          currentStmts = [];
+        } else {
+          currentStmts.push(stmt);
+        }
+      }
+      cols.push({
+        stmts: currentStmts,
+        nextConnectorLabel: null,
+      });
+      return cols.filter((c, idx) => c.stmts.length > 0 || idx === cols.length - 1);
+    }
+
+    const isTwoColumns =
+      this.options.columns === 2 ||
+      (this.options.columns !== 1 && this.shouldUseTwoColumns(ast));
+
+    if (isTwoColumns && ast.length >= 4) {
+      const { col1, col2 } = this.splitForTwoColumns(ast);
+      return [
+        { stmts: col1, nextConnectorLabel: "1" },
+        { stmts: col2, nextConnectorLabel: null },
+      ];
+    }
+
+    return [{ stmts: ast, nextConnectorLabel: null }];
+  }
+
   render() {
     this.elements = [];
     this.bounds = new BoundingBox();
@@ -927,13 +1041,47 @@ class FlowchartRenderer {
     });
 
     const startNode = this.layoutPrimitive(null, "start");
-    const bodySeq = this.layoutNodeList(filteredAst);
     const endNode = this.layoutPrimitive(null, "end");
+    const columns = this.splitAstIntoColumns(filteredAst);
 
-    const fullSeq = this.layoutSeq([startNode, bodySeq, endNode]);
-    const startX = 40;
-    const startY = 40;
-    fullSeq.render(startX, startY);
+    if (columns.length > 1) {
+      const startX = 40;
+      const startY = 40;
+      const colGap = 70;
+      let curX = startX;
+
+      for (let i = 0; i < columns.length; i++) {
+        const col = columns[i];
+        const isFirst = i === 0;
+        const isLast = i === columns.length - 1;
+        const bodySeq = this.layoutNodeList(col.stmts);
+
+        const colElements = [];
+        if (isFirst) {
+          colElements.push(startNode);
+        } else {
+          const prevConnLabel = columns[i - 1].nextConnectorLabel || String(i);
+          colElements.push(this.layoutConnector(prevConnLabel));
+        }
+
+        colElements.push(bodySeq);
+
+        if (isLast) {
+          colElements.push(endNode);
+        } else {
+          const nextConnLabel = col.nextConnectorLabel || String(i + 1);
+          colElements.push(this.layoutConnector(nextConnLabel));
+        }
+
+        const colSeq = this.layoutSeq(colElements);
+        colSeq.render(curX, startY);
+        curX += colSeq.w + colGap;
+      }
+    } else {
+      const bodySeq = this.layoutNodeList(columns[0].stmts);
+      const fullSeq = this.layoutSeq([startNode, bodySeq, endNode]);
+      fullSeq.render(40, 40);
+    }
 
     const vb = this.bounds.getViewBox(50, 40);
     const svgContent = `

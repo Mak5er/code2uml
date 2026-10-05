@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Code2, Heart } from 'lucide-react';
+import { Code2, Heart, BookOpen } from 'lucide-react';
 import { LINKS } from '../constants/links.js';
 
 export default function CodeEditor({
@@ -7,13 +7,17 @@ export default function CodeEditor({
     onChange,
     onClear,
     onGenerate,
-    status
+    status,
+    presets = [],
+    selectedPreset = '',
+    onSelectPreset
 }) {
     const textareaRef = useRef(null);
     const lineNumbersRef = useRef(null);
 
     const lineCount = code ? code.split('\n').length : 1;
     const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
+    const categories = Array.from(new Set(presets.map(p => p.category)));
 
     const handleScroll = () => {
         if (textareaRef.current && lineNumbersRef.current) {
@@ -47,15 +51,39 @@ export default function CodeEditor({
             <div className="panel-header">
                 <div className="panel-title">
                     <Code2 size={15} strokeWidth={2} />
-                    <span>C++ Код програми</span>
+                    <span>C++ Код</span>
                 </div>
-                <button
-                    className="btn btn-outline btn-sm"
-                    onClick={onClear}
-                    title="Очистити поле коду"
-                >
-                    Очистити
-                </button>
+                <div className="panel-header-actions">
+                    {presets && presets.length > 0 && (
+                        <div className="preset-selector-container">
+                            <BookOpen size={13} className="preset-icon" />
+                            <select
+                                className="preset-select"
+                                value={selectedPreset || ''}
+                                onChange={(e) => onSelectPreset && onSelectPreset(e.target.value)}
+                                title="Виберіть зразок лабораторної роботи (4.1–4.7)"
+                            >
+                                <option value="" disabled>Шаблони ЛР</option>
+                                {categories.map((cat) => (
+                                    <optgroup key={cat} label={cat}>
+                                        {presets.filter(p => p.category === cat).map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.label}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    <button
+                        className="btn btn-outline btn-sm"
+                        onClick={onClear}
+                        title="Очистити поле коду"
+                    >
+                        Очистити
+                    </button>
+                </div>
             </div>
 
             <div className="code-wrapper">
@@ -72,14 +100,14 @@ export default function CodeEditor({
                     onScroll={handleScroll}
                     onKeyDown={handleKeyDown}
                     spellCheck="false"
-                    placeholder="// Вставте або напишіть ваш C++ код сюди..."
+                    placeholder="// Вставте або напишіть C++ код сюди... (розрив на колонки: // [split])"
                 />
             </div>
 
             <div className="panel-footer">
                 <div className="panel-footer-info">
                     <span className="code-status-text">{status}</span>
-                    <span className="supported-text">Підтримує: cin, cout, if-else, switch, while, for, do-while, функції</span>
+                    <span className="supported-text">Підтримує: cin, cout, if-else, switch, while, for, do-while, функції, розрив // [split]</span>
                 </div>
                 <div className="panel-credits">
                     <span>Розробив <a href={LINKS.AUTHOR_WEBSITE} target="_blank" rel="noopener noreferrer">Mak5er</a></span>

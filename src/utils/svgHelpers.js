@@ -213,8 +213,9 @@ const SVG = {
         const charW = 8.2;
         const prefix = options.prefix || '';
         const suffix = options.suffix || '';
-        const sep = target === 'return' ? ' ' : ' = ';
-        const leftText = target ? `${target}${sep}${prefix}` : prefix;
+        const sep = (target === 'return' || /[-+*/]?=$/.test(target)) ? ' ' : ' = ';
+        const formattedTarget = target ? target.replace(/\*/g, '·') : '';
+        const leftText = formattedTarget ? `${formattedTarget}${sep}${prefix}` : prefix;
         const leftW = leftText ? leftText.length * charW : 0;
         const rightW = suffix ? suffix.length * charW : 0;
         const numW = numText.length * 8.0;
@@ -365,6 +366,20 @@ const SVG = {
         return `
         <g class="diagram-node uml-diamond-node">
             <polygon points="${points}" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+        </g>
+        `;
+    },
+
+    // 10. Flowchart & UML Page/Column Connector (ГОСТ 19.701-90 & UML Activity)
+    connector(cx, cy, label = "1", r = 13, options = {}) {
+        const strokeColor = options.stroke || '#1e293b';
+        const fillColor = options.fill || '#ffffff';
+        const textColor = options.textColor || '#0f172a';
+        return `
+        <g class="diagram-node connector-node">
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+            <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+                fill="${textColor}" font-family="${FONT_STACK}" font-size="12.5" font-weight="700">${label}</text>
         </g>
         `;
     },

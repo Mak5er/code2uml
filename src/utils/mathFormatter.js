@@ -6,7 +6,8 @@
 const SUPERSCRIPT_MAP = {
     '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
     '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-    '-': '⁻', '+': '⁺', 'n': 'ⁿ', 'k': 'ᵏ', 'm': 'ᵐ', 'i': 'ⁱ'
+    '-': '⁻', '+': '⁺', 'n': 'ⁿ', 'k': 'ᵏ', 'm': 'ᵐ', 'i': 'ⁱ',
+    'x': 'ˣ', 'y': 'ʸ', 'z': 'ᶻ', 'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ'
 };
 
 export function toSuperscript(str) {
@@ -129,6 +130,9 @@ export function toMathExpression(str) {
     if (!str) return '';
     let s = String(str).trim();
 
+    // 0. Remove C-style typecasts: (double)(x) -> (x)
+    s = s.replace(/\(\s*(?:double|float|int|long|short|unsigned|signed)\s*\)/g, '');
+
     // 1. Remove std:: prefix
     s = s.replace(/\bstd::/g, '');
 
@@ -160,6 +164,15 @@ export function toMathExpression(str) {
         return `|${toMathExpression(inner.trim())}|`;
     });
 
+    // 7b. exp(...) with balanced parens -> eˣ or e^(...)
+    s = replaceBalancedCalls(s, ['exp'], (fn, inner) => {
+        const trimmed = inner.trim();
+        if (/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+            return `e${toSuperscript(trimmed)}`;
+        }
+        return `e^(${toMathExpression(trimmed)})`;
+    });
+
     // 8. C++ math logs & trig
     s = s.replace(/\blog10\b/g, 'lg');
     s = s.replace(/\blog\b/g, 'ln');
@@ -168,17 +181,21 @@ export function toMathExpression(str) {
 
     // 9. Constants & Greek letters
     s = s.replace(/\b(?:M_PI|PI|pi)\b/g, 'π');
+    s = s.replace(/\b(?:eps|epsilon)\b/gi, 'ε');
     s = s.replace(/\balpha\b/g, 'α');
     s = s.replace(/\bbeta\b/g, 'β');
     s = s.replace(/\bgamma\b/g, 'γ');
 
-    // 10. Relational operators
+    // 10. Clean C++ float-cast idiom: 1.*i or 1. * i -> i
+    s = s.replace(/\b1\.(?:0)?\s*\*\s*/g, '');
+
+    // 11. Relational operators
     s = s.replace(/!=/g, '≠');
     s = s.replace(/<=/g, '≤');
     s = s.replace(/>=/g, '≥');
     s = s.replace(/==/g, '=');
 
-    // 11. Multiplication sign * -> ·
+    // 12. Multiplication sign * -> ·
     s = s.replace(/\*/g, '·');
 
     return s;
@@ -188,20 +205,24 @@ export function parseFraction(expr) {
     if (!expr) return { isFraction: false };
     let s = expr.trim();
 
-    // Check if target = expr or return expr is inside
+    // Check if target = expr or return expr is inside (including +=, -=, *=, /=)
     let target = '';
     if (/^return\s+/i.test(s)) {
         target = 'return';
         s = s.replace(/^return\s+/i, '').trim();
     } else {
-        const eqMatch = s.match(/^([a-zA-Z_][a-zA-Z0-9_\s]*)=(.*)$/);
+        const eqMatch = s.match(/^([a-zA-Z_][a-zA-Z0-9_\s]*?)\s*([+\-*/]?=)\s*(.*)$/);
         if (eqMatch) {
             let t = eqMatch[1].trim();
+            const op = eqMatch[2];
             t = t.replace(/^(const\s+|constexpr\s+)?(double|float|int|long|short|auto|char|bool|unsigned|signed|size_t)\s+/, '').trim();
-            target = t;
-            s = eqMatch[2].trim();
+            target = op === '=' ? t : `${t} ${op}`;
+            s = eqMatch[3].trim();
         }
     }
+
+    // Strip C-style casts inside fraction expression: (double)(k - N) -> (k - N)
+    s = s.replace(/\(\s*(?:double|float|int|long|short|unsigned|signed)\s*\)/g, '');
 
     let parenDepth = 0;
     let slashIdx = -1;

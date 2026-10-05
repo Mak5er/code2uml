@@ -84,7 +84,7 @@ class UmlRenderer {
     return null;
   }
 
-  calcActionDimensions(node, isIO = false, maxChars = 32) {
+  calcActionDimensions(node, isIO = false, maxChars = 40) {
     if (typeof node === "object" && node !== null) {
       if (
         this.options.expressionMode === "math" &&
@@ -93,7 +93,9 @@ class UmlRenderer {
         const frac = this.checkFraction(node);
         if (frac) {
           const charW = 8.2;
-          const leftPart = frac.target ? `${frac.target} = ${frac.prefix}` : frac.prefix;
+          const sep = (frac.target === 'return' || /[-+*/]?=$/.test(frac.target)) ? ' ' : ' = ';
+          const formattedTarget = frac.target ? frac.target.replace(/\*/g, '·') : '';
+          const leftPart = formattedTarget ? `${formattedTarget}${sep}${frac.prefix}` : frac.prefix;
           const leftW = leftPart ? leftPart.length * charW : 0;
           const rightW = frac.suffix ? frac.suffix.length * charW : 0;
           const numW = frac.numText.length * 8.0;
@@ -353,24 +355,133 @@ class UmlRenderer {
     if (stmt.step) {
       bodyItems.push({ type: "process", text: stmt.step });
     }
-    const bodyLayout = this.layoutNodeList(bodyItems);
     const gap = this.options.nodeGap;
     const dSize = this.options.diamondSize || 24;
     const mSize = this.options.mergeDiamondSize || dSize;
     const guard = this.formatGuard(condText);
 
-    const loopMarginLeft = 32;
-    const loopMarginRight = 36;
-    const innerLeft = Math.max(dSize / 2, bodyLayout.cx);
-    const innerRight = Math.max(dSize / 2, bodyLayout.w - bodyLayout.cx);
-    const totalW = loopMarginLeft + innerLeft + innerRight + loopMarginRight;
-    const axisX = loopMarginLeft + innerLeft;
+    // If bodyItems has 2 statements and neither is branching/nested loop (standard Lab 4.1 loop: [action, step])
+    const isComplex = bodyItems.some(
+      (b) =>
+        b.type === "if" ||
+        b.type === "switch" ||
+        b.type === "while" ||
+        b.type === "for" ||
+        b.type === "do_while"
+    );
+
+    if (bodyItems.length === 2 && !isComplex) {
+      const actionLayout = this.layoutStatement(bodyItems[0]);
+      const stepLayout = this.layoutStatement(bodyItems[1]);
+
+      const mergeCy = Math.max(mSize / 2, stepLayout.h / 2) + 4;
+      const arrowGap = 24;
+      const decCy = mergeCy + stepLayout.h / 2 + arrowGap + actionLayout.h / 2;
+      const totalH = Math.max(decCy + dSize / 2, decCy + actionLayout.h / 2) + gap;
+
+      const axisX = Math.max(mSize / 2, dSize / 2) + 20;
+      // Size branchSpacing so the guard label fits cleanly without excess empty space
+      const guardW = guard.length * 6.0 + 8;
+      const branchSpacing = Math.max(52, Math.round(guardW));
+
+      const actLeft = axisX + dSize / 2 + branchSpacing;
+      const actionW = actionLayout.w;
+      const stepW = stepLayout.w;
+
+      // Position step neatly above action, aligned with left-center of action:
+      const stepOffset = Math.max(16, Math.min((actionW - stepW) / 2, 40));
+      const stepLeft = actLeft + (actionW > stepW ? stepOffset : 0);
+      const stepCx = stepLeft + stepW / 2;
+
+      const rightEdge = Math.max(actLeft + actionW, stepLeft + stepW);
+      const totalW = rightEdge + 16;
+
+      return {
+        w: totalW,
+        h: totalH,
+        cx: axisX,
+        render: (ox, oy) => {
+          const k = ox + axisX;
+          const marker = "arrow-uml";
+
+          // Top Merge Diamond
+          this.bounds.addRect(k - mSize / 2, oy + mergeCy - mSize / 2, mSize, mSize);
+          this.elements.push(SVG.umlDiamond(k, oy + mergeCy, mSize));
+
+          // Vertical line from Merge Diamond down to Decision Diamond
+          this.bounds.addPoint(k, oy + mergeCy + mSize / 2);
+          this.bounds.addPoint(k, oy + decCy - dSize / 2);
+          this.elements.push(SVG.line(k, oy + mergeCy + mSize / 2, k, oy + decCy - dSize / 2, true, marker));
+
+          // Decision Diamond
+          this.bounds.addRect(k - dSize / 2, oy + decCy - dSize / 2, dSize, dSize);
+          this.elements.push(SVG.umlDiamond(k, oy + decCy, dSize));
+
+          // Straight down exit from Decision Diamond to totalH
+          this.bounds.addPoint(k, oy + decCy + dSize / 2);
+          this.bounds.addPoint(k, oy + totalH);
+          this.elements.push(SVG.line(k, oy + decCy + dSize / 2, k, oy + totalH, false, marker));
+
+          // Branch to action on the right
+          const actRenderX = ox + actLeft;
+          const actY = oy + decCy;
+
+          // Guard label above horizontal branch
+          const labelX = k + dSize / 2 + 5;
+          const labelY = oy + decCy - 7;
+          this.bounds.addText(labelX, labelY, guard, { anchor: "start", size: 11 });
+          this.elements.push(SVG.label(labelX, labelY, guard, { anchor: "start", size: 11, weight: "600" }));
+
+          // Arrow from Decision right vertex to action left edge
+          this.bounds.addPoint(k + dSize / 2, oy + decCy);
+          this.bounds.addPoint(actRenderX, oy + decCy);
+          this.elements.push(SVG.line(k + dSize / 2, oy + decCy, actRenderX, oy + decCy, true, marker));
+
+          // Render action
+          actionLayout.render(actRenderX, actY - actionLayout.h / 2);
+
+          // Arrow up from action to step
+          const stepRenderX = ox + stepLeft;
+          const stepY = oy + mergeCy;
+          const actTop = actY - actionLayout.h / 2;
+          const stepBottom = stepY + stepLayout.h / 2;
+          const arrowUpX = ox + stepCx;
+
+          this.bounds.addPoint(arrowUpX, actTop);
+          this.bounds.addPoint(arrowUpX, stepBottom);
+          this.elements.push(SVG.line(arrowUpX, actTop, arrowUpX, stepBottom, true, marker));
+
+          // Render step
+          stepLayout.render(stepRenderX, stepY - stepLayout.h / 2);
+
+          // Arrow left from step to Merge Diamond right vertex
+          this.bounds.addPoint(stepRenderX, oy + mergeCy);
+          this.bounds.addPoint(k + mSize / 2, oy + mergeCy);
+          this.elements.push(SVG.line(stepRenderX, oy + mergeCy, k + mSize / 2, oy + mergeCy, true, marker));
+        },
+      };
+    }
+
+    // General While Loop (for 1 statement, complex bodies with branching, or arbitrary statements):
+    const bodyLayout = this.layoutNodeList(bodyItems);
+
+    const bodyLeftSpan = bodyLayout.cx;
+    const bodyRightSpan = bodyLayout.w - bodyLayout.cx;
+
+    const exitMarginLeft = 32;
+    const loopMarginRight = 32;
+
+    const innerLeft = Math.max(dSize / 2 + 20, bodyLeftSpan + exitMarginLeft);
+    const innerRight = Math.max(dSize / 2 + 20, bodyRightSpan + loopMarginRight);
+    const totalW = innerLeft + innerRight;
+    const axisX = innerLeft;
 
     const mergeCy = mSize / 2;
     const decCy = mergeCy + mSize / 2 + gap + dSize / 2;
     const bodyTopY = decCy + dSize / 2 + gap;
     const bodyBottomY = bodyTopY + bodyLayout.h;
-    const totalH = bodyBottomY + gap;
+    const exitY = bodyBottomY + 16;
+    const totalH = exitY + gap;
 
     return {
       w: totalW,
@@ -380,58 +491,62 @@ class UmlRenderer {
         const k = ox + axisX;
         const marker = "arrow-uml";
 
-        // Top Merge Diamond
-        this.bounds.addRect(k - mSize / 2, oy, mSize, mSize);
+        // 1. Top Merge Diamond
+        this.bounds.addRect(k - mSize / 2, oy + mergeCy - mSize / 2, mSize, mSize);
         this.elements.push(SVG.umlDiamond(k, oy + mergeCy, mSize));
 
-        // Line to Decision Diamond
-        this.bounds.addPoint(k, oy + mSize);
+        // Line from Merge Diamond down to Decision Diamond
+        this.bounds.addPoint(k, oy + mergeCy + mSize / 2);
         this.bounds.addPoint(k, oy + decCy - dSize / 2);
-        this.elements.push(SVG.line(k, oy + mSize, k, oy + decCy - dSize / 2, true, marker));
+        this.elements.push(SVG.line(k, oy + mergeCy + mSize / 2, k, oy + decCy - dSize / 2, true, marker));
 
-        // Decision Diamond
+        // 2. Decision Diamond
         this.bounds.addRect(k - dSize / 2, oy + decCy - dSize / 2, dSize, dSize);
         this.elements.push(SVG.umlDiamond(k, oy + decCy, dSize));
 
-        // Guard label on line to body
-        const labelY = oy + decCy + dSize / 2 + 13;
-        this.bounds.addText(k + 8, labelY, guard, { anchor: "start", size: 12 });
-        this.elements.push(SVG.label(k + 8, labelY, guard, { anchor: "start", size: 12, weight: "600" }));
-
-        // Line down to body
+        // 3. TRUE branch: Straight down into body
+        const trueLineBottomY = oy + bodyTopY;
         this.bounds.addPoint(k, oy + decCy + dSize / 2);
-        this.bounds.addPoint(k, oy + bodyTopY);
-        this.elements.push(SVG.line(k, oy + decCy + dSize / 2, k, oy + bodyTopY, true, marker));
+        this.bounds.addPoint(k, trueLineBottomY);
+        this.elements.push(SVG.line(k, oy + decCy + dSize / 2, k, trueLineBottomY, true, marker));
 
-        // Render body
+        // Guard label on TRUE branch (down)
+        const guardLabelX = k + 8;
+        const guardLabelY = oy + decCy + dSize / 2 + 13;
+        this.bounds.addText(guardLabelX, guardLabelY, guard, { anchor: "start", size: 11 });
+        this.elements.push(SVG.label(guardLabelX, guardLabelY, guard, { anchor: "start", size: 11, weight: "600" }));
+
+        // 4. Render Body on the central spine
         bodyLayout.render(k - bodyLayout.cx, oy + bodyTopY);
 
-        // Loopback line around left into merge diamond
-        const loopLeftX = ox + 8;
+        // 5. Loopback line from bottom of body around the RIGHT to Merge Diamond
+        // loopRightX is tightly positioned just right of the rightmost edge of the body:
+        const loopRightX = k + bodyRightSpan + 24;
         const loopPts = [
           [k, oy + bodyBottomY],
           [k, oy + bodyBottomY + 12],
-          [loopLeftX, oy + bodyBottomY + 12],
-          [loopLeftX, oy + mergeCy],
-          [k - mSize / 2, oy + mergeCy],
+          [loopRightX, oy + bodyBottomY + 12],
+          [loopRightX, oy + mergeCy],
+          [k + mSize / 2, oy + mergeCy],
         ];
         loopPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
         this.elements.push(SVG.polyline(loopPts, true, marker));
 
-        // Right exit line ([інакше]) around right
-        const exitRightX = ox + totalW - 8;
-        const exitLabelX = k + dSize / 2 + 8;
-        this.bounds.addText(exitLabelX, oy + decCy - 6, "[інакше]", { anchor: "start", size: 12 });
-        this.elements.push(SVG.label(exitLabelX, oy + decCy - 6, "[інакше]", { anchor: "start", size: 12, weight: "600" }));
+        // 6. FALSE branch: Exit from LEFT vertex of Decision Diamond around the body
+        const exitLeftX = k - bodyLeftSpan - 20;
+        const elseLabel = "[інакше]";
+        this.bounds.addText(k - dSize / 2 - 8, oy + decCy - 6, elseLabel, { anchor: "end", size: 11 });
+        this.elements.push(SVG.label(k - dSize / 2 - 8, oy + decCy - 6, elseLabel, { anchor: "end", size: 11, weight: "600" }));
 
         const exitPts = [
-          [k + dSize / 2, oy + decCy],
-          [exitRightX, oy + decCy],
-          [exitRightX, oy + totalH],
+          [k - dSize / 2, oy + decCy],
+          [exitLeftX, oy + decCy],
+          [exitLeftX, oy + exitY],
+          [k, oy + exitY],
           [k, oy + totalH],
         ];
         exitPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
-        this.elements.push(SVG.polyline(exitPts, false));
+        this.elements.push(SVG.polyline(exitPts, false, marker));
       },
     };
   }
@@ -444,17 +559,18 @@ class UmlRenderer {
     const mSize = this.options.mergeDiamondSize || dSize;
     const guard = this.formatGuard(condText);
 
-    const loopMarginLeft = 32;
+    const loopMarginLeft = 20;
     const innerLeft = Math.max(dSize / 2, bodyLayout.cx);
     const innerRight = Math.max(dSize / 2, bodyLayout.w - bodyLayout.cx);
-    const totalW = loopMarginLeft + innerLeft + innerRight + 16;
+    const loopMarginRight = 36;
+    const totalW = loopMarginLeft + innerLeft + innerRight + loopMarginRight;
     const axisX = loopMarginLeft + innerLeft;
 
     const mergeCy = mSize / 2;
     const bodyTopY = mSize + gap;
     const bodyBottomY = bodyTopY + bodyLayout.h;
     const decCy = bodyBottomY + gap + dSize / 2;
-    const totalH = decCy + dSize / 2;
+    const totalH = decCy + dSize / 2 + gap;
 
     return {
       w: totalW,
@@ -485,24 +601,25 @@ class UmlRenderer {
         this.bounds.addRect(k - dSize / 2, oy + decCy - dSize / 2, dSize, dSize);
         this.elements.push(SVG.umlDiamond(k, oy + decCy, dSize));
 
-        // Loopback around left to top merge diamond
-        const loopLeftX = ox + 8;
-        const labelX = k - dSize / 2 - 8;
-        this.bounds.addText(labelX, oy + decCy - 6, guard, { anchor: "end", size: 12 });
-        this.elements.push(SVG.label(labelX, oy + decCy - 6, guard, { anchor: "end", size: 12, weight: "600" }));
+        // Loopback around RIGHT to top merge diamond
+        const loopRightX = ox + totalW - 8;
+        const labelX = k + dSize / 2 + 8;
+        this.bounds.addText(labelX, oy + decCy - 6, guard, { anchor: "start", size: 12 });
+        this.elements.push(SVG.label(labelX, oy + decCy - 6, guard, { anchor: "start", size: 12, weight: "600" }));
 
         const loopPts = [
-          [k - dSize / 2, oy + decCy],
-          [loopLeftX, oy + decCy],
-          [loopLeftX, oy + mergeCy],
-          [k - mSize / 2, oy + mergeCy],
+          [k + dSize / 2, oy + decCy],
+          [loopRightX, oy + decCy],
+          [loopRightX, oy + mergeCy],
+          [k + mSize / 2, oy + mergeCy],
         ];
         loopPts.forEach(([px, py]) => this.bounds.addPoint(px, py));
         this.elements.push(SVG.polyline(loopPts, true, marker));
 
-        // [інакше] down exit
-        this.bounds.addText(k + 8, oy + decCy + dSize / 2 + 13, "[інакше]", { anchor: "start", size: 12 });
-        this.elements.push(SVG.label(k + 8, oy + decCy + dSize / 2 + 13, "[інакше]", { anchor: "start", size: 12, weight: "600" }));
+        // Straight down exit from Decision Diamond to totalH
+        this.bounds.addPoint(k, oy + decCy + dSize / 2);
+        this.bounds.addPoint(k, oy + totalH);
+        this.elements.push(SVG.line(k, oy + decCy + dSize / 2, k, oy + totalH, false, marker));
       },
     };
   }
@@ -512,11 +629,14 @@ class UmlRenderer {
     if (stmt.init) {
       items.push({ type: "process", text: stmt.init });
     }
+    const forBody = [...(stmt.body || [])];
+    if (stmt.step) {
+      forBody.push({ type: "process", text: stmt.step });
+    }
     items.push({
       type: "while",
       condition: stmt.condition,
-      body: stmt.body || [],
-      step: stmt.step,
+      body: forBody,
     });
     return this.layoutNodeList(items);
   }
@@ -641,6 +761,101 @@ class UmlRenderer {
     return this.layoutSeq(items);
   }
 
+  layoutConnector(label = "1") {
+    const r = 13;
+    const w = r * 2 + 10;
+    const h = r * 2;
+    return {
+      w,
+      h,
+      cx: w / 2,
+      render: (ox, oy) => {
+        const cx = ox + w / 2;
+        const cy = oy + r;
+        this.bounds.addRect(cx - r, cy - r, r * 2, r * 2);
+        this.elements.push(SVG.connector(cx, cy, label, r));
+      },
+    };
+  }
+
+  shouldUseTwoColumns(ast) {
+    let loopCount = 0;
+    for (const stmt of ast) {
+      if (stmt.type === "while" || stmt.type === "do_while" || stmt.type === "for") {
+        loopCount++;
+      }
+    }
+    return loopCount >= 3;
+  }
+
+  splitForTwoColumns(ast) {
+    const loopIndices = [];
+    ast.forEach((stmt, idx) => {
+      if (stmt.type === "while" || stmt.type === "do_while" || stmt.type === "for") {
+        loopIndices.push(idx);
+      }
+    });
+
+    let splitIdx = Math.ceil(ast.length / 2);
+    if (loopIndices.length >= 3) {
+      // For 4 loops (like 4.1), split after the second loop and its following output
+      const secondLoopIdx = loopIndices[1];
+      for (let i = secondLoopIdx + 1; i < ast.length; i++) {
+        if (ast[i].type === "output") {
+          splitIdx = i + 1;
+          break;
+        }
+      }
+    }
+
+    return {
+      col1: ast.slice(0, splitIdx),
+      col2: ast.slice(splitIdx),
+    };
+  }
+
+  splitAstIntoColumns(ast) {
+    const hasExplicitSplit = ast.some((stmt) => stmt.type === "split");
+    if (hasExplicitSplit) {
+      const cols = [];
+      let currentStmts = [];
+      let splitCounter = 1;
+
+      for (let i = 0; i < ast.length; i++) {
+        const stmt = ast[i];
+        if (stmt.type === "split") {
+          const label = stmt.label || String(splitCounter++);
+          cols.push({
+            stmts: currentStmts,
+            nextConnectorLabel: label,
+          });
+          currentStmts = [];
+        } else {
+          currentStmts.push(stmt);
+        }
+      }
+      cols.push({
+        stmts: currentStmts,
+        nextConnectorLabel: null,
+      });
+      return cols.filter((c, idx) => c.stmts.length > 0 || idx === cols.length - 1);
+    }
+
+    const isTwoColumns =
+      this.options.columns === 2 ||
+      (this.options.columns !== 1 && this.shouldUseTwoColumns(ast));
+
+    if (isTwoColumns && ast.length >= 4) {
+      const { col1, col2 } = this.splitForTwoColumns(ast);
+      return [
+        { stmts: col1, nextConnectorLabel: "1" },
+        { stmts: col2, nextConnectorLabel: null },
+      ];
+    }
+
+    return [{ stmts: ast, nextConnectorLabel: null }];
+  }
+
   render() {
     this.elements = [];
     this.bounds = new BoundingBox();
@@ -661,14 +876,48 @@ class UmlRenderer {
     } else {
       startNode = this.layoutPrimitive(null, "start");
     }
-
-    const bodySeq = this.layoutNodeList(filteredAst);
     const endNode = this.layoutPrimitive(null, "end");
 
-    const fullSeq = this.layoutSeq([startNode, bodySeq, endNode]);
-    const startX = 40;
-    const startY = 40;
-    fullSeq.render(startX, startY);
+    const columns = this.splitAstIntoColumns(filteredAst);
+
+    if (columns.length > 1) {
+      const startX = 40;
+      const startY = 40;
+      const colGap = 70;
+      let curX = startX;
+
+      for (let i = 0; i < columns.length; i++) {
+        const col = columns[i];
+        const isFirst = i === 0;
+        const isLast = i === columns.length - 1;
+        const bodySeq = this.layoutNodeList(col.stmts);
+
+        const colElements = [];
+        if (isFirst) {
+          colElements.push(startNode);
+        } else {
+          const prevConnLabel = columns[i - 1].nextConnectorLabel || String(i);
+          colElements.push(this.layoutConnector(prevConnLabel));
+        }
+
+        colElements.push(bodySeq);
+
+        if (isLast) {
+          colElements.push(endNode);
+        } else {
+          const nextConnLabel = col.nextConnectorLabel || String(i + 1);
+          colElements.push(this.layoutConnector(nextConnLabel));
+        }
+
+        const colSeq = this.layoutSeq(colElements);
+        colSeq.render(curX, startY);
+        curX += colSeq.w + colGap;
+      }
+    } else {
+      const bodySeq = this.layoutNodeList(columns[0].stmts);
+      const fullSeq = this.layoutSeq([startNode, bodySeq, endNode]);
+      fullSeq.render(40, 40);
+    }
 
     const vb = this.bounds.getViewBox(50, 40);
     const svgContent = `
