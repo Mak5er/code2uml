@@ -7,7 +7,6 @@ import { parseCppCode } from "./parser/cppParser";
 import { FlowchartRenderer } from "./renderers/flowchartRenderer";
 import { UmlRenderer } from "./renderers/umlRenderer";
 import { exportSvg, exportPng } from "./utils/exportUtils";
-import { PRESETS } from "./constants/presets";
 import { trackEvent } from "./utils/analytics";
 import "./App.css";
 
@@ -51,7 +50,6 @@ function compileCode(
 
 export default function App() {
   const [code, setCode] = useState("");
-  const [selectedPreset, setSelectedPreset] = useState("");
 
   const [expressionMode, setExpressionMode] = useState(() => {
     try {
@@ -206,20 +204,6 @@ export default function App() {
     [selectedFunction, expressionMode, arrowRule, columnsMode, ioLabelsMode, showToast],
   );
 
-  const handleSelectPreset = (presetId) => {
-    const preset = PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    trackEvent("select_preset", {
-      preset_id: preset.id,
-      preset_label: preset.label,
-      preset_category: preset.category,
-    });
-    setSelectedPreset(preset.id);
-    setCode(preset.code);
-    generateDiagrams(preset.code, null, false);
-    showToast(`✓ Завантажено: ${preset.label}`);
-  };
-
   const handleToggleExpressionMode = (mode) => {
     trackEvent("toggle_expression_mode", { mode });
     setExpressionMode(mode);
@@ -287,12 +271,6 @@ export default function App() {
   // Debounced compilation when typing
   const handleCodeChange = (newCode) => {
     setCode(newCode);
-    if (selectedPreset) {
-      const activePreset = PRESETS.find((p) => p.id === selectedPreset);
-      if (activePreset && activePreset.code !== newCode) {
-        setSelectedPreset("");
-      }
-    }
     clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       generateDiagrams(newCode, null, true);
@@ -302,7 +280,6 @@ export default function App() {
   const handleClearCode = () => {
     trackEvent("clear_code");
     setCode("");
-    setSelectedPreset("");
     setFlowchartSvg("");
     setUmlSvg("");
     setFunctions([]);
@@ -464,9 +441,6 @@ export default function App() {
           onClear={handleClearCode}
           onGenerate={() => generateDiagrams(code, false)}
           status={status}
-          presets={PRESETS}
-          selectedPreset={selectedPreset}
-          onSelectPreset={handleSelectPreset}
         />
 
         <ViewerPanel

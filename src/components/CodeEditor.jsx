@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Code2, Heart, BookOpen } from 'lucide-react';
+import { Code2, Heart } from 'lucide-react';
 import { LINKS } from '../constants/links.js';
 import { trackEvent } from '../utils/analytics.js';
 
@@ -9,16 +9,12 @@ export default function CodeEditor({
     onClear,
     onGenerate,
     status,
-    presets = [],
-    selectedPreset = '',
-    onSelectPreset
 }) {
     const textareaRef = useRef(null);
     const lineNumbersRef = useRef(null);
 
     const lineCount = code ? code.split('\n').length : 1;
     const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
-    const categories = Array.from(new Set(presets.map(p => p.category)));
 
     const handleScroll = () => {
         if (textareaRef.current && lineNumbersRef.current) {
@@ -55,28 +51,6 @@ export default function CodeEditor({
                     <span>C++ Код</span>
                 </div>
                 <div className="panel-header-actions">
-                    {presets && presets.length > 0 && (
-                        <div className="preset-selector-container">
-                            <BookOpen size={13} className="preset-icon" />
-                            <select
-                                className="preset-select"
-                                value={selectedPreset || ''}
-                                onChange={(e) => onSelectPreset && onSelectPreset(e.target.value)}
-                                title="Виберіть зразок лабораторної роботи (4.1–4.7)"
-                            >
-                                <option value="" disabled>Шаблони ЛР</option>
-                                {categories.map((cat) => (
-                                    <optgroup key={cat} label={cat}>
-                                        {presets.filter(p => p.category === cat).map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.label}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                ))}
-                            </select>
-                        </div>
-                    )}
                     <button
                         className="btn btn-outline btn-sm"
                         onClick={onClear}

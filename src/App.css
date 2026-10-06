@@ -484,58 +484,6 @@ html.dark .dropdown-menu {
     gap: 8px;
 }
 
-.preset-selector-container {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 8px;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    height: 28px;
-    box-sizing: border-box;
-    transition: all 0.15s ease;
-}
-
-.preset-selector-container:hover {
-    border-color: var(--border-hover);
-}
-
-.preset-selector-container:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-light);
-}
-
-.preset-icon {
-    color: var(--accent);
-    flex-shrink: 0;
-}
-
-.preset-select {
-    background: transparent;
-    border: none;
-    outline: none;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-primary);
-    cursor: pointer;
-    font-family: inherit;
-    max-width: 190px;
-    padding: 0;
-}
-
-.preset-select option,
-.preset-select optgroup {
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
-    font-size: 12px;
-}
-
-.preset-select optgroup {
-    font-weight: 700;
-    color: var(--text-muted);
-}
-
 .code-wrapper {
     flex: 1;
     display: flex;

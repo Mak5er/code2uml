@@ -51,7 +51,7 @@ src/
 │   ├── Toast.jsx           # Спливаючі сповіщення
 │   └── ViewerPanel.jsx     # Робоче полотно з вкладками
 ├── constants/
-│   └── defaultCode.js      # Початковий C++ код
+│   └── links.js            # Зовнішні посилання проекту
 ├── parser/
 │   └── cppParser.js        # Лексер та синтаксичний аналізатор AST
 ├── renderers/
