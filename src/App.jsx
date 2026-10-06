@@ -8,6 +8,7 @@ import { FlowchartRenderer } from "./renderers/flowchartRenderer";
 import { UmlRenderer } from "./renderers/umlRenderer";
 import { exportSvg, exportPng } from "./utils/exportUtils";
 import { PRESETS } from "./constants/presets";
+import { trackEvent } from "./utils/analytics";
 import "./App.css";
 
 function compileCode(
@@ -133,7 +134,14 @@ export default function App() {
   }, []);
 
   const toggleTheme = () => {
+    const nextTheme = isDark ? "light" : "dark";
+    trackEvent("toggle_theme", { theme: nextTheme });
     setIsDark((prev) => !prev);
+  };
+
+  const handleTabChange = (newTab) => {
+    trackEvent("change_tab", { tab: newTab });
+    setActiveTab(newTab);
   };
 
   // Diagram compilation
@@ -172,12 +180,25 @@ export default function App() {
           setSelectedFunction(res.activeFunction);
         }
         if (!silent) {
+          trackEvent("generate_diagrams", {
+            code_length: trimmed.length,
+            lines_count: trimmed.split("\n").length,
+            expression_mode: expMode,
+            arrow_rule: arrRule,
+            columns_mode: String(cols),
+            io_labels_mode: ioLabels,
+            functions_count: res.functions ? res.functions.length : 1,
+            active_function: res.activeFunction || "main",
+          });
           showToast("✓ Діаграми успішно згенеровано!");
         }
       } catch (err) {
         console.warn("Parsing error:", err);
         setStatus(`⚠️ Помилка C++: ${err.message}`);
         if (!silent) {
+          trackEvent("generate_diagrams_error", {
+            error_message: err.message,
+          });
           showToast(`Помилка: ${err.message}`);
         }
       }
@@ -188,6 +209,11 @@ export default function App() {
   const handleSelectPreset = (presetId) => {
     const preset = PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
+    trackEvent("select_preset", {
+      preset_id: preset.id,
+      preset_label: preset.label,
+      preset_category: preset.category,
+    });
     setSelectedPreset(preset.id);
     setCode(preset.code);
     generateDiagrams(preset.code, null, false);
@@ -195,6 +221,7 @@ export default function App() {
   };
 
   const handleToggleExpressionMode = (mode) => {
+    trackEvent("toggle_expression_mode", { mode });
     setExpressionMode(mode);
     try {
       localStorage.setItem("expressionMode", mode);
@@ -208,6 +235,7 @@ export default function App() {
   };
 
   const handleToggleArrowRule = (rule) => {
+    trackEvent("toggle_arrow_rule", { rule });
     setArrowRule(rule);
     try {
       localStorage.setItem("arrowRule", rule);
@@ -221,6 +249,7 @@ export default function App() {
   };
 
   const handleToggleColumnsMode = (mode) => {
+    trackEvent("toggle_columns_mode", { mode: String(mode) });
     setColumnsMode(mode);
     try {
       localStorage.setItem("columnsMode", String(mode));
@@ -236,6 +265,7 @@ export default function App() {
   };
 
   const handleToggleIoLabelsMode = (mode) => {
+    trackEvent("toggle_io_labels_mode", { mode });
     setIoLabelsMode(mode);
     try {
       localStorage.setItem("ioLabelsMode", mode);
@@ -249,6 +279,7 @@ export default function App() {
   };
 
   const handleSelectFunction = (funcName) => {
+    trackEvent("select_function", { function_name: funcName });
     setSelectedFunction(funcName);
     generateDiagrams(code, funcName, false, expressionMode, arrowRule, columnsMode, ioLabelsMode);
   };
@@ -269,6 +300,7 @@ export default function App() {
   };
 
   const handleClearCode = () => {
+    trackEvent("clear_code");
     setCode("");
     setSelectedPreset("");
     setFlowchartSvg("");
@@ -294,6 +326,11 @@ export default function App() {
         showToast("Спочатку згенеруйте діаграми");
         return;
       }
+      trackEvent("export_diagram", {
+        format: "svg",
+        diagram_type: "both",
+        trigger: "header_menu",
+      });
       if (fcEl) {
         exportSvg(fcEl, "flowchart.svg");
       }
@@ -311,6 +348,11 @@ export default function App() {
         showToast("Спочатку згенеруйте діаграму");
         return;
       }
+      trackEvent("export_diagram", {
+        format: "svg",
+        diagram_type: activeTab,
+        trigger: "header_menu",
+      });
       const filename =
         activeTab === "uml" ? "uml_activity.svg" : "flowchart.svg";
       exportSvg(svgEl, filename);
@@ -326,6 +368,11 @@ export default function App() {
         showToast("Спочатку згенеруйте діаграми");
         return;
       }
+      trackEvent("export_diagram", {
+        format: "png",
+        diagram_type: "both",
+        trigger: "header_menu",
+      });
       try {
         if (fcEl) {
           await exportPng(fcEl, "flowchart.png", 2.5);
@@ -346,6 +393,11 @@ export default function App() {
         showToast("Спочатку згенеруйте діаграму");
         return;
       }
+      trackEvent("export_diagram", {
+        format: "png",
+        diagram_type: activeTab,
+        trigger: "header_menu",
+      });
       const filename =
         activeTab === "uml" ? "uml_activity.png" : "flowchart.png";
       try {
@@ -359,12 +411,22 @@ export default function App() {
 
   const handleDownloadCardSvg = (svgEl, name) => {
     if (!svgEl) return;
+    trackEvent("export_diagram", {
+      format: "svg",
+      diagram_type: name,
+      trigger: "card_button",
+    });
     exportSvg(svgEl, `${name}.svg`);
     showToast(`✓ Завантажено ${name}.svg`);
   };
 
   const handleDownloadCardPng = async (svgEl, name) => {
     if (!svgEl) return;
+    trackEvent("export_diagram", {
+      format: "png",
+      diagram_type: name,
+      trigger: "card_button",
+    });
     try {
       await exportPng(svgEl, `${name}.png`, 2.5);
       showToast(`✓ Завантажено ${name}.png`);
@@ -409,7 +471,7 @@ export default function App() {
 
         <ViewerPanel
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           flowchartSvg={flowchartSvg}
           umlSvg={umlSvg}
           flowchartRef={flowchartRef}

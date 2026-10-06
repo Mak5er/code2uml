@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Code2, Heart, BookOpen } from 'lucide-react';
 import { LINKS } from '../constants/links.js';
+import { trackEvent } from '../utils/analytics.js';
 
 export default function CodeEditor({
     code,
@@ -110,9 +111,35 @@ export default function CodeEditor({
                     <span className="supported-text">Підтримує: cin, cout, if-else, switch, while, for, do-while, функції, розрив // [split]</span>
                 </div>
                 <div className="panel-credits">
-                    <span>Розробив <a href={LINKS.AUTHOR_WEBSITE} target="_blank" rel="noopener noreferrer">Mak5er</a></span>
+                    <span>
+                        Розробив{' '}
+                        <a
+                            href={LINKS.AUTHOR_WEBSITE}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() =>
+                                trackEvent('click_external_link', {
+                                    link_name: 'author_website',
+                                    url: LINKS.AUTHOR_WEBSITE,
+                                })
+                            }
+                        >
+                            Mak5er
+                        </a>
+                    </span>
                     <span className="credits-dot">•</span>
-                    <a href={LINKS.MONOBANK_JAR} target="_blank" rel="noopener noreferrer" className="credits-donate">
+                    <a
+                        href={LINKS.MONOBANK_JAR}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="credits-donate"
+                        onClick={() =>
+                            trackEvent('click_external_link', {
+                                link_name: 'monobank_footer',
+                                url: LINKS.MONOBANK_JAR,
+                            })
+                        }
+                    >
                         <Heart size={11} fill="currentColor" /> Донат на mono
                     </a>
                 </div>

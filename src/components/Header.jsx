@@ -9,6 +9,7 @@ import {
   Heart,
 } from "lucide-react";
 import { LINKS } from "../constants/links.js";
+import { trackEvent } from "../utils/analytics.js";
 
 export default function Header({
   onGenerate,
@@ -295,6 +296,12 @@ export default function Header({
           rel="noopener noreferrer"
           className="btn btn-donate"
           title="Підтримати проект через monobank"
+          onClick={() =>
+            trackEvent("click_external_link", {
+              link_name: "monobank_header",
+              url: LINKS.MONOBANK_JAR,
+            })
+          }
         >
           <Heart size={14} className="donate-icon" fill="currentColor" />
           <span>Донат</span>
