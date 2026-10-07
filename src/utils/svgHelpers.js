@@ -418,7 +418,7 @@ const SVG = {
             `<tspan x="${x}" y="${startY + i * lineHeight}" dominant-baseline="central">${this.escapeXml(l)}</tspan>`
         ).join('');
 
-        return `<text text-anchor="${anchor}" dominant-baseline="central"
+        return `<text text-anchor="${anchor}" dominant-baseline="central" xml:space="preserve"
             fill="${color}" font-family="${family}"
             font-size="${size}" font-weight="${weight}" user-select="none">${tspans}</text>`;
     },

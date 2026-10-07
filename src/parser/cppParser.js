@@ -658,6 +658,11 @@ class CppParser {
                     hasTableFormatting = true;
                     continue;
                 }
+                // Skip table header rows: "|    N    |       x       |       y       |   Результат   |"
+                if (inner.startsWith('|') && inner.endsWith('|')) {
+                    hasTableFormatting = true;
+                    continue;
+                }
                 // Skip prompt label prefix if followed by non-string expressions (e.g. "x = ", "S = ")
                 if (hasUpcomingNonString && (inner.endsWith('=') || inner.endsWith(':'))) {
                     continue;
@@ -684,13 +689,23 @@ class CppParser {
 
         const simpleText = orderedItems.join(', ');
 
+        // Check if statement looks like an input prompt (e.g. "x = ", "Enter: ", "Точка 1, x = ")
+        const lastPart = parts.length > 0 ? parts[parts.length - 1] : null;
+        let endsWithPromptPunct = false;
+        if (lastPart && lastPart.length === 1 && lastPart[0].type === 'STRING') {
+            const inner = lastPart[0].value.slice(1, -1).trim();
+            endsWithPromptPunct = inner.endsWith('=') || inner.endsWith(':') || inner.endsWith('?') || inner.endsWith('>');
+        }
+        const hasPromptKeywords = /(?:введіть|ввід|enter|input|точка|point|координат)/i.test(simpleText);
+        const isPromptCandidate = !hasNonString || endsWithPromptPunct || hasPromptKeywords;
+
         return {
             type: 'output',
             raw: `cout << ...;`,
             text: simpleText,
             umlText: `вивід ${simpleText}`,
             fullText: simpleText,
-            isPromptCandidate: !hasNonString
+            isPromptCandidate: isPromptCandidate
         };
     }
 
@@ -1121,8 +1136,11 @@ class CppParser {
             const next = i + 1 < stmts.length ? stmts[i + 1] : null;
 
             // If prompt output is immediately followed by input, skip the prompt output
-            if (curr && curr.type === 'output' && curr.isPromptCandidate && next && next.type === 'input') {
-                continue;
+            if (curr && curr.type === 'output' && next && next.type === 'input') {
+                const isExplicitResult = /(?:результат|result|відповідь|answer)/i.test(curr.text || curr.raw || '');
+                if (curr.isPromptCandidate || !isExplicitResult) {
+                    continue;
+                }
             }
 
             if (curr) {

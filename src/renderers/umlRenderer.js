@@ -54,9 +54,48 @@ class UmlRenderer {
     return cond;
   }
 
-  formatGuard(condText) {
-    const raw = this.getConditionText(condText);
-    return `[ ${raw} ]`;
+  formatGuard(condText, maxChars = 50) {
+    let raw = this.getConditionText(condText);
+    if (!raw) return "[ ]";
+    if (typeof raw === "string") {
+      raw = raw.trim();
+      if (raw.startsWith("[") && raw.endsWith("]")) {
+        raw = raw.slice(1, -1).trim();
+      }
+    }
+    const lines = SVG.splitText(raw, maxChars);
+    if (lines.length <= 1) {
+      return `[ ${raw} ]`;
+    }
+    return lines.map((line, idx) => {
+      const trimmed = line.trim();
+      if (idx === 0) return `[ ${trimmed}`;
+      if (idx === lines.length - 1) return `  ${trimmed} ]`;
+      return `  ${trimmed}`;
+    });
+  }
+
+  getLabelDimensions(label, fontSize = 11) {
+    if (Array.isArray(label)) {
+      const maxChars = Math.max(...label.map((l) => (l || "").length), 0);
+      return {
+        lines: label,
+        maxChars,
+        w: maxChars * (fontSize * 0.58) + 8,
+        h: label.length * (fontSize * 1.35),
+        isMultiLine: label.length > 1,
+      };
+    }
+    const str = String(label || "");
+    const lines = str.split("\n");
+    const maxChars = Math.max(...lines.map((l) => l.length), 0);
+    return {
+      lines,
+      maxChars,
+      w: maxChars * (fontSize * 0.58) + 8,
+      h: lines.length * (fontSize * 1.35),
+      isMultiLine: lines.length > 1,
+    };
   }
 
   checkFraction(stmt) {
@@ -260,12 +299,30 @@ class UmlRenderer {
       i1 += needed;
       c1 += needed;
     }
+
+    const thenDim = this.getLabelDimensions(branches[1].label, 11);
+    const elseDim = this.getLabelDimensions(branches[0].label, 11);
+
+    // If a guard is multi-line, ensure horizontal arm has enough room before turning down
+    const minThenArm = thenDim.isMultiLine ? Math.max(30, Math.round(thenDim.w + 16)) : 0;
+    const minElseArm = elseDim.isMultiLine ? Math.max(30, Math.round(elseDim.w + 16)) : 0;
+    const currentArm = (c1 - c0) / 2 - dw / 2;
+    const armNeeded = Math.max(0, minThenArm - currentArm, minElseArm - currentArm);
+    if (armNeeded > 0) {
+      i1 += armNeeded * 2;
+      c1 += armNeeded * 2;
+    }
+
     const r = i1 + b1W;
 
     const diamondX = (c0 + c1) / 2;
     const vShift = -Math.min(0, diamondX - dw / 2);
     const totalW = Math.max(r, diamondX + dw / 2) + vShift;
-    const topGap = dh + gap;
+    const maxLabelExtraH = Math.max(
+      thenDim.isMultiLine ? thenDim.h + 10 : 0,
+      elseDim.isMultiLine ? elseDim.h + 10 : 0
+    );
+    const topGap = dh + gap + maxLabelExtraH;
     const maxBranchH = Math.max(branches[0].layout.h, branches[1].layout.h);
     const mSize = this.options.mergeDiamondSize || dw;
     const mergeDiamondR = mSize / 2;
@@ -305,13 +362,15 @@ class UmlRenderer {
           this.elements.push(SVG.polyline(branchPts, true, marker));
 
           // Guard label near diamond exit
+          const branchDim = this.getLabelDimensions(branch.label, 11);
           const labelX = k + (S === 1 ? dw / 2 + 8 : -dw / 2 - 8);
           const labelAnchor = S === 1 ? "start" : "end";
-          this.bounds.addText(labelX, tt - 7, branch.label, { anchor: labelAnchor, size: 12 });
+          const labelY = branchDim.isMultiLine ? tt + 8 + branchDim.h / 2 : tt - 7;
+          this.bounds.addText(labelX, labelY, branch.label, { anchor: labelAnchor, size: 11 });
           this.elements.push(
-            SVG.label(labelX, tt - 7, branch.label, {
+            SVG.label(labelX, labelY, branch.label, {
               anchor: labelAnchor,
-              size: 12,
+              size: 11,
               weight: "600",
             })
           );
@@ -468,8 +527,8 @@ class UmlRenderer {
     const bodyLeftSpan = bodyLayout.cx;
     const bodyRightSpan = bodyLayout.w - bodyLayout.cx;
 
-    const exitMarginLeft = 32;
-    const loopMarginRight = 32;
+    const exitMarginLeft = 48;
+    const loopMarginRight = 48;
 
     const innerLeft = Math.max(dSize / 2 + 20, bodyLeftSpan + exitMarginLeft);
     const innerRight = Math.max(dSize / 2 + 20, bodyRightSpan + loopMarginRight);
@@ -478,9 +537,12 @@ class UmlRenderer {
 
     const mergeCy = mSize / 2;
     const decCy = mergeCy + mSize / 2 + gap + dSize / 2;
-    const bodyTopY = decCy + dSize / 2 + gap;
+    const isIfAtTop = bodyItems.length > 0 && bodyItems[0].type === "if";
+    const bodyGap = isIfAtTop ? gap + 22 : gap + 10;
+    const bodyTopY = decCy + dSize / 2 + bodyGap;
     const bodyBottomY = bodyTopY + bodyLayout.h;
-    const exitY = bodyBottomY + 16;
+    const loopTurnY = bodyBottomY + 14;
+    const exitY = loopTurnY + 22;
     const totalH = exitY + gap;
 
     return {
@@ -512,7 +574,7 @@ class UmlRenderer {
 
         // Guard label on TRUE branch (down)
         const guardLabelX = k + 8;
-        const guardLabelY = oy + decCy + dSize / 2 + 13;
+        const guardLabelY = oy + decCy + dSize / 2 + Math.round(bodyGap / 2);
         this.bounds.addText(guardLabelX, guardLabelY, guard, { anchor: "start", size: 11 });
         this.elements.push(SVG.label(guardLabelX, guardLabelY, guard, { anchor: "start", size: 11, weight: "600" }));
 
@@ -520,12 +582,12 @@ class UmlRenderer {
         bodyLayout.render(k - bodyLayout.cx, oy + bodyTopY);
 
         // 5. Loopback line from bottom of body around the RIGHT to Merge Diamond
-        // loopRightX is tightly positioned just right of the rightmost edge of the body:
-        const loopRightX = k + bodyRightSpan + 24;
+        // loopRightX is positioned with clean clearance right of the body:
+        const loopRightX = k + bodyRightSpan + 36;
         const loopPts = [
           [k, oy + bodyBottomY],
-          [k, oy + bodyBottomY + 12],
-          [loopRightX, oy + bodyBottomY + 12],
+          [k, oy + loopTurnY],
+          [loopRightX, oy + loopTurnY],
           [loopRightX, oy + mergeCy],
           [k + mSize / 2, oy + mergeCy],
         ];
@@ -533,7 +595,7 @@ class UmlRenderer {
         this.elements.push(SVG.polyline(loopPts, true, marker));
 
         // 6. FALSE branch: Exit from LEFT vertex of Decision Diamond around the body
-        const exitLeftX = k - bodyLeftSpan - 20;
+        const exitLeftX = k - bodyLeftSpan - 36;
         const elseLabel = "[інакше]";
         this.bounds.addText(k - dSize / 2 - 8, oy + decCy - 6, elseLabel, { anchor: "end", size: 11 });
         this.elements.push(SVG.label(k - dSize / 2 - 8, oy + decCy - 6, elseLabel, { anchor: "end", size: 11, weight: "600" }));
