@@ -3,6 +3,7 @@ import { Columns, Rows } from "lucide-react";
 import CanvasControls from "./CanvasControls";
 import DiagramCard from "./DiagramCard";
 import { isPhysicalMouseWheel } from "../utils/diagramGraph.js";
+import { trackEvent } from "../utils/analytics.js";
 
 export default function ViewerPanel({
   activeTab,
@@ -39,6 +40,7 @@ export default function ViewerPanel({
 
   const handleToggleLayout = (layout) => {
     setDiagramsLayout(layout);
+    trackEvent("viewer_change_layout", { layout });
     try {
       localStorage.setItem("diagramsLayout", layout);
     } catch {}
@@ -71,15 +73,23 @@ export default function ViewerPanel({
     [zoom],
   );
 
-  const handleZoomIn = () => handleZoomAtCenter(zoom + 0.15);
-  const handleZoomOut = () => handleZoomAtCenter(zoom - 0.15);
+  const handleZoomIn = () => {
+    trackEvent("viewer_zoom", { action: "zoom_in" });
+    handleZoomAtCenter(zoom + 0.15);
+  };
+  const handleZoomOut = () => {
+    trackEvent("viewer_zoom", { action: "zoom_out" });
+    handleZoomAtCenter(zoom - 0.15);
+  };
   const handleResetZoom = () => {
+    trackEvent("viewer_zoom", { action: "zoom_reset" });
     setZoom(1.0);
     setPan({ x: 40, y: 40 });
   };
 
   // Zoom to Fit (auto-framing all cards in the workspace)
   const handleFitToScreen = useCallback(() => {
+    trackEvent("viewer_zoom", { action: "fit_to_screen" });
     const ws = workspaceRef.current;
     if (!ws) return;
     const wsRect = ws.getBoundingClientRect();

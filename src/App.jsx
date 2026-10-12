@@ -409,6 +409,7 @@ export default function App() {
   };
 
   const handleResetSettings = () => {
+    trackEvent("reset_settings_defaults");
     setExpressionMode("cpp");
     setArrowRule("gost");
     setColumnsMode("auto");
@@ -457,11 +458,14 @@ export default function App() {
 
   // Visual Editor handlers
   const handleOpenEditor = (type) => {
-    setEditorDiagramType(type || "flowchart");
+    const diagType = type || "flowchart";
+    trackEvent("open_editor", { diagram_type: diagType });
+    setEditorDiagramType(diagType);
     setEditorModalOpen(true);
   };
 
   const handleSaveCustomSvg = (newSvg, type) => {
+    trackEvent("save_editor", { diagram_type: type });
     setCustomSvgByTab((prev) => ({
       ...prev,
       [type]: newSvg,
@@ -470,6 +474,7 @@ export default function App() {
   };
 
   const handleResetCustomSvg = (type) => {
+    trackEvent("reset_editor_to_code", { diagram_type: type });
     setCustomSvgByTab((prev) => ({
       ...prev,
       [type]: null,
@@ -513,7 +518,10 @@ export default function App() {
         selectedFunction={selectedFunction}
         onSelectFunction={handleSelectFunction}
         expressionMode={expressionMode}
-        onOpenSettings={() => setSettingsModalOpen(true)}
+        onOpenSettings={() => {
+          trackEvent("open_settings_modal");
+          setSettingsModalOpen(true);
+        }}
       />
 
       <main className="app-container">
@@ -581,7 +589,10 @@ export default function App() {
       {/* Settings Modal (consolidated options) */}
       <SettingsModal
         isOpen={settingsModalOpen}
-        onClose={() => setSettingsModalOpen(false)}
+        onClose={() => {
+          trackEvent("close_settings_modal");
+          setSettingsModalOpen(false);
+        }}
         expressionMode={expressionMode}
         onToggleExpressionMode={handleToggleExpressionMode}
         arrowRule={arrowRule}
@@ -600,7 +611,10 @@ export default function App() {
         <DiagramEditorModal
           key={`${editorDiagramType}_${selectedFunction}`}
           isOpen={editorModalOpen}
-          onClose={() => setEditorModalOpen(false)}
+          onClose={() => {
+            trackEvent("close_editor", { diagram_type: editorDiagramType });
+            setEditorModalOpen(false);
+          }}
           diagramType={editorDiagramType}
           diagramTitle={
             editorDiagramType === "uml"

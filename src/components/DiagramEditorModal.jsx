@@ -32,6 +32,7 @@ import {
   calculateOrthogonalRoute,
   isPhysicalMouseWheel,
 } from "../utils/diagramGraph.js";
+import { trackEvent } from "../utils/analytics.js";
 
 export function ShapePaletteIcon({ type }) {
   const commonProps = {
@@ -433,6 +434,7 @@ export default function DiagramEditorModal({
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
+      trackEvent("editor_undo");
       const prev = history[historyIndex - 1];
       setHistoryIndex(historyIndex - 1);
       setGraph(prev);
@@ -443,6 +445,7 @@ export default function DiagramEditorModal({
 
   const handleRedo = useCallback(() => {
     if (historyIndex < history.length - 1) {
+      trackEvent("editor_redo");
       const next = history[historyIndex + 1];
       setHistoryIndex(historyIndex + 1);
       setGraph(next);
@@ -552,6 +555,7 @@ export default function DiagramEditorModal({
   // Duplicate Selected Node(s)
   const handleDuplicateSelected = useCallback(() => {
     if (!selectedNodeIds.length) return;
+    trackEvent("editor_duplicate_selected", { count: selectedNodeIds.length });
     const newNodes = [];
     selectedNodeIds.forEach((id) => {
       const srcNode = graph.nodes.find((n) => n.id === id);
@@ -576,6 +580,10 @@ export default function DiagramEditorModal({
   // Delete Selected Entity
   const handleDeleteSelected = useCallback(() => {
     if (selectedNodeIds.length > 0) {
+      trackEvent("editor_delete_selected", {
+        type: "nodes",
+        count: selectedNodeIds.length,
+      });
       const idSet = new Set(selectedNodeIds);
       const nextNodes = graph.nodes.filter((n) => !idSet.has(n.id));
       const nextEdges = graph.edges.filter(
@@ -585,6 +593,10 @@ export default function DiagramEditorModal({
       pushHistory(nextGraph);
       setSelectedNodeIds([]);
     } else if (selectedEdgeId) {
+      trackEvent("editor_delete_selected", {
+        type: "edge",
+        count: 1,
+      });
       const nextEdges = graph.edges.filter((e) => e.id !== selectedEdgeId);
       const nextGraph = { ...graph, edges: nextEdges };
       pushHistory(nextGraph);
@@ -1005,6 +1017,10 @@ export default function DiagramEditorModal({
               ...graph,
               edges: [...graph.edges, newEdge],
             };
+            trackEvent("editor_connect_nodes", {
+              diagram_type: diagramType,
+              has_arrow: newEdge.hasArrow,
+            });
             pushHistory(nextGraph);
             setSelectedEdgeId(newEdge.id);
             setSelectedNodeIds([]);
@@ -1166,6 +1182,9 @@ export default function DiagramEditorModal({
   // Properties: Toggle Arrowhead
   const handleToggleArrowhead = () => {
     if (!selectedEdgeId) return;
+    const currentEdge = graph.edges.find((e) => e.id === selectedEdgeId);
+    const nextArrow = currentEdge ? !currentEdge.hasArrow : true;
+    trackEvent("editor_toggle_arrow", { has_arrow: nextArrow });
     const nextEdges = graph.edges.map((e) =>
       e.id === selectedEdgeId ? { ...e, hasArrow: !e.hasArrow } : e
     );
@@ -1175,6 +1194,10 @@ export default function DiagramEditorModal({
   // Properties: Toggle Orthogonal vs Straight
   const handleToggleOrthogonal = () => {
     if (!selectedEdgeId) return;
+    const currentEdge = graph.edges.find((e) => e.id === selectedEdgeId);
+    trackEvent("editor_toggle_orthogonal", {
+      is_orthogonal: !currentEdge?.isOrthogonal,
+    });
     const nextEdges = graph.edges.map((e) => {
       if (e.id !== selectedEdgeId) return e;
       if (e.isOrthogonal) {
@@ -1193,6 +1216,7 @@ export default function DiagramEditorModal({
   // Properties: Add Bend Waypoint
   const handleAddEdgeBend = () => {
     if (!selectedEdgeId) return;
+    trackEvent("editor_add_bend_point");
     const nextEdges = graph.edges.map((e) => {
       if (e.id !== selectedEdgeId) return e;
       const pts = [...e.points];
@@ -1217,6 +1241,11 @@ export default function DiagramEditorModal({
       shapeDef.isUml || shapeDef.type.startsWith("uml-") || diagramType === "uml"
     );
 
+    trackEvent("editor_add_node", {
+      node_type: shapeDef.type,
+      is_uml: isUmlNode,
+    });
+
     const newNode = {
       id: `node_${nextIdRef.current++}`,
       type: shapeDef.type,
@@ -1240,6 +1269,11 @@ export default function DiagramEditorModal({
 
   // Save changes (ALWAYS export standard clean paper-white SVG for reports/cards/print)
   const handleSaveAndClose = () => {
+    trackEvent("save_editor", {
+      diagram_type: diagramType,
+      nodes_count: graph.nodes.length,
+      edges_count: graph.edges.length,
+    });
     const regeneratedSvg = graphToSvg(graph, { isDark: false });
     onSave(regeneratedSvg, diagramType);
     onClose();
@@ -1248,9 +1282,26 @@ export default function DiagramEditorModal({
   // Reset to original C++
   const handleReset = () => {
     if (confirm("Скинути всі ручні зміни діаграми та повернутися до коду C++?")) {
+      trackEvent("reset_editor_to_code", { diagram_type: diagramType });
       onResetToCode();
       onClose();
     }
+  };
+
+  const handleSetTool = (tool) => {
+    trackEvent("editor_change_tool", { tool });
+    setCanvasTool(tool);
+  };
+
+  const handleToggleSnap = () => {
+    trackEvent("editor_toggle_grid", { snap: !snapToGrid });
+    setSnapToGrid(!snapToGrid);
+  };
+
+  const handleToggleTheme = () => {
+    const nextDark = !editorThemeDark;
+    trackEvent("editor_toggle_theme", { theme: nextDark ? "dark" : "light" });
+    setEditorThemeDark(nextDark);
   };
 
   if (!isOpen) return null;
@@ -1288,14 +1339,14 @@ export default function DiagramEditorModal({
             <div className="drawio-sep" />
             <button
               className={`drawio-tool-btn ${canvasTool === "pan" ? "active" : ""}`}
-              onClick={() => setCanvasTool("pan")}
+              onClick={() => handleSetTool("pan")}
               title="Режим «Рука»: затисніть ліву кнопку миші на полотні для перетягування"
             >
               <Hand size={15} />
             </button>
             <button
               className={`drawio-tool-btn ${canvasTool === "marquee" ? "active" : ""}`}
-              onClick={() => setCanvasTool("marquee")}
+              onClick={() => handleSetTool("marquee")}
               title="Режим «Рамка»: обвести групу блоків прямокутником (або затисніть Shift+Drag)"
             >
               <BoxSelect size={15} />
@@ -1320,14 +1371,14 @@ export default function DiagramEditorModal({
             <div className="drawio-sep" />
             <button
               className={`drawio-tool-btn ${snapToGrid ? "active" : ""}`}
-              onClick={() => setSnapToGrid(!snapToGrid)}
+              onClick={handleToggleSnap}
               title="Прив'язка до сітки 10px (Snap to Grid)"
             >
               <Grid size={15} />
             </button>
             <button
               className="drawio-tool-btn"
-              onClick={() => setEditorThemeDark(!editorThemeDark)}
+              onClick={handleToggleTheme}
               title={editorThemeDark ? "Перемкнути на світлу тему полотна" : "Перемкнути на темну тему полотна"}
             >
               {editorThemeDark ? <Sun size={15} /> : <Moon size={15} />}
