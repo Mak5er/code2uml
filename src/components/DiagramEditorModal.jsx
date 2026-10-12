@@ -20,6 +20,8 @@ import {
   CornerDownRight,
   ArrowDownFromLine,
   ArrowUpFromLine,
+  Hand,
+  BoxSelect,
 } from "lucide-react";
 import {
   extractGraphFromSvg,
@@ -27,6 +29,7 @@ import {
   getNodeAnchorPoints,
   getNearestAnchorPort,
   calculateOrthogonalRoute,
+  isPhysicalMouseWheel,
 } from "../utils/diagramGraph.js";
 
 export function ShapePaletteIcon({ type }) {
@@ -232,6 +235,7 @@ export default function DiagramEditorModal({
   const [zoom, setZoom] = useState(1.0);
   const [pan, setPan] = useState({ x: 120, y: 70 });
   const [snapToGrid, setSnapToGrid] = useState(true);
+  const [canvasTool, setCanvasTool] = useState("pan"); // 'pan' (hand drag) | 'marquee' (box selection)
 
   // Selection (supports multi-selection for strips and groups of blocks)
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
@@ -335,11 +339,19 @@ export default function DiagramEditorModal({
       e.preventDefault();
       const currentZoom = zoomRef.current;
       const currentPan = panRef.current;
+      const isMouseWheel = isPhysicalMouseWheel(e);
 
-      if (e.ctrlKey || e.metaKey) {
-        // Pinch-to-zoom or Ctrl+Wheel anchored at cursor
-        const zoomDelta = -e.deltaY * 0.005;
-        const targetZoom = Math.min(Math.max(0.2, currentZoom + zoomDelta), 3.0);
+      if (e.ctrlKey || e.metaKey || isMouseWheel) {
+        // Zoom anchored at cursor (mouse wheel scroll OR trackpad pinch/Ctrl+wheel)
+        let targetZoom;
+        if (isMouseWheel) {
+          const step = -Math.sign(e.deltaY) * 0.12;
+          targetZoom = Math.min(Math.max(0.2, currentZoom + step), 3.0);
+        } else {
+          const zoomDelta = -e.deltaY * 0.005;
+          targetZoom = Math.min(Math.max(0.2, currentZoom + zoomDelta), 3.0);
+        }
+
         const rect = canvasArea.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -638,7 +650,7 @@ export default function DiagramEditorModal({
     dragStartPositionsRef.current = { points: pts };
   };
 
-  // --- Handlers: Canvas MouseDown (Marquee Selection / Pan) ---
+  // --- Handlers: Canvas MouseDown (Pan / Marquee Selection) ---
   const handleCanvasMouseDown = (e) => {
     if (
       e.target.closest(".drawio-shapes-sidebar") ||
@@ -651,8 +663,10 @@ export default function DiagramEditorModal({
       handleFinishTextEdit();
     }
 
-    if (isSpacePressed || e.button === 1) {
-      // Pan canvas
+    const isMarqueeMode = canvasTool === "marquee" || e.shiftKey;
+
+    if (!isMarqueeMode) {
+      // Pan canvas (затиснувши перетягувати полотно як у Canva/Draw.io)
       isDraggingRef.current = true;
       dragTypeRef.current = "pan";
       dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -660,7 +674,7 @@ export default function DiagramEditorModal({
       return;
     }
 
-    // Marquee selection box on empty canvas drag
+    // Marquee selection box on Shift+drag or when Marquee tool is active
     if (!e.shiftKey) {
       setSelectedNodeIds([]);
       setSelectedEdgeId(null);
@@ -869,6 +883,17 @@ export default function DiagramEditorModal({
       setConnectingState(null);
     }
 
+    if (dragTypeRef.current === "pan" && dragStartMouseRef.current && e?.clientX !== undefined) {
+      const dist = Math.hypot(
+        e.clientX - dragStartMouseRef.current.x,
+        e.clientY - dragStartMouseRef.current.y
+      );
+      if (dist < 5) {
+        setSelectedNodeIds([]);
+        setSelectedEdgeId(null);
+      }
+    }
+
     if (dragTypeRef.current === "marquee") {
       setMarqueeBox(null);
     }
@@ -1068,6 +1093,21 @@ export default function DiagramEditorModal({
             </button>
             <div className="drawio-sep" />
             <button
+              className={`drawio-tool-btn ${canvasTool === "pan" ? "active" : ""}`}
+              onClick={() => setCanvasTool("pan")}
+              title="Режим «Рука»: затисніть ліву кнопку миші на полотні для перетягування"
+            >
+              <Hand size={15} />
+            </button>
+            <button
+              className={`drawio-tool-btn ${canvasTool === "marquee" ? "active" : ""}`}
+              onClick={() => setCanvasTool("marquee")}
+              title="Режим «Рамка»: обвести групу блоків прямокутником (або затисніть Shift+Drag)"
+            >
+              <BoxSelect size={15} />
+            </button>
+            <div className="drawio-sep" />
+            <button
               className="drawio-tool-btn"
               onClick={() => handleShiftBelow(60)}
               title="Розсунути місце вниз: посунути всі нижні блоки на +60px (Alt+↓)"
@@ -1175,7 +1215,7 @@ export default function DiagramEditorModal({
           {/* --- Center Column: Interactive Canvas --- */}
           <main
             ref={canvasAreaRef}
-            className={`drawio-canvas-area ${isSpacePressed ? "space-panning" : ""}`}
+            className={`drawio-canvas-area ${isSpacePressed || canvasTool === "pan" ? "space-panning" : "marquee-mode"}`}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -1783,26 +1823,34 @@ export default function DiagramEditorModal({
                 </div>
 
                 <div className="prop-section">
-                  <label className="prop-checkbox">
+                  <label className="prop-custom-checkbox">
                     <input
                       type="checkbox"
                       checked={Boolean(selectedEdge.hasArrow)}
                       onChange={handleToggleArrowhead}
+                      className="sr-only"
                     />
-                    <span>
+                    <span className={`custom-check-box ${selectedEdge.hasArrow ? "checked" : ""}`}>
+                      {selectedEdge.hasArrow && <Check size={12} strokeWidth={2.8} />}
+                    </span>
+                    <span className="prop-checkbox-label">
                       <ArrowRight size={14} /> Наконечник стрілки на кінці
                     </span>
                   </label>
                 </div>
 
                 <div className="prop-section">
-                  <label className="prop-checkbox">
+                  <label className="prop-custom-checkbox">
                     <input
                       type="checkbox"
                       checked={Boolean(selectedEdge.isOrthogonal)}
                       onChange={handleToggleOrthogonal}
+                      className="sr-only"
                     />
-                    <span>
+                    <span className={`custom-check-box ${selectedEdge.isOrthogonal ? "checked" : ""}`}>
+                      {selectedEdge.isOrthogonal && <Check size={12} strokeWidth={2.8} />}
+                    </span>
+                    <span className="prop-checkbox-label">
                       <Split size={14} /> Ортогональна ламана (90°)
                     </span>
                   </label>

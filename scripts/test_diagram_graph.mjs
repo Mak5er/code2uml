@@ -53,7 +53,24 @@ const routeDisplaced = calculateOrthogonalRoute(
   "up"
 );
 assert.equal(routeDisplaced.length, 4); // 90° Manhattan route with midpoint elbow
-console.log("✓ calculateOrthogonalRoute Manhattan routing passed");
+
+// Test Loopback Route (ДСТУ 19.701-90 loop corridor)
+const loopbackRoute = calculateOrthogonalRoute(
+  { x: 200, y: 350 },
+  "down",
+  { x: 200, y: 150 },
+  "up"
+);
+assert.ok(loopbackRoute.length >= 4, "Loopback should route through outside corridor");
+// Ensure all segments are strictly orthogonal
+for (let i = 0; i < loopbackRoute.length - 1; i++) {
+  const pA = loopbackRoute[i];
+  const pB = loopbackRoute[i + 1];
+  const isHoriz = Math.abs(pA.y - pB.y) < 1;
+  const isVert = Math.abs(pA.x - pB.x) < 1;
+  assert.ok(isHoriz || isVert, `Segment ${i} must be orthogonal (horizontal or vertical)`);
+}
+console.log("✓ calculateOrthogonalRoute Manhattan & ДСТУ loopback routing passed");
 
 // 4. Test Graph Data Structure & Dual Theme SVG generation
 const graph = {

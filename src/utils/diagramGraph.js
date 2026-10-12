@@ -100,76 +100,241 @@ function getStubPoint(pt, dir, len = 20) {
 }
 
 /**
- * Professional Manhattan (90° Orthogonal) router like Draw.io
+ * Detect whether a wheel event originated from a physical mouse wheel
+ * vs a touchpad two-finger scroll.
+ */
+export function isPhysicalMouseWheel(e) {
+  if (!e) return false;
+  // Non-pixel deltaMode (lines or pages) is guaranteed to be a physical mouse wheel
+  if (e.deltaMode !== 0) return true;
+  // Trackpad two-finger swipes almost always have a horizontal component
+  if (Math.abs(e.deltaX) > 0) return false;
+  const absY = Math.abs(e.deltaY);
+  // Physical mouse wheel clicks are discrete, integer pulses (>= 40px, typically 100 or 120 on Mac)
+  if (absY >= 40 && Number.isInteger(e.deltaY)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Remove duplicate adjacent points and redundant colinear intermediate points.
+ * Guarantees minimal, clean orthogonal path.
+ */
+export function simplifyOrthogonalRoute(points) {
+  if (!points || points.length <= 2) return points || [];
+
+  // 1. Remove duplicate adjacent points
+  const deduped = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = deduped[deduped.length - 1];
+    const curr = points[i];
+    if (Math.abs(prev.x - curr.x) > 0.5 || Math.abs(prev.y - curr.y) > 0.5) {
+      deduped.push({ x: Math.round(curr.x), y: Math.round(curr.y) });
+    }
+  }
+  if (deduped.length <= 2) return deduped;
+
+  // 2. Remove colinear intermediate points (horizontal or vertical)
+  const result = [deduped[0]];
+  for (let i = 1; i < deduped.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const curr = deduped[i];
+    const next = deduped[i + 1];
+
+    const isColinearH =
+      Math.abs(prev.y - curr.y) < 0.5 && Math.abs(curr.y - next.y) < 0.5;
+    const isColinearV =
+      Math.abs(prev.x - curr.x) < 0.5 && Math.abs(curr.x - next.x) < 0.5;
+
+    if (!isColinearH && !isColinearV) {
+      result.push(curr);
+    }
+  }
+  result.push(deduped[deduped.length - 1]);
+  return result;
+}
+
+/**
+ * Professional Manhattan (90° Orthogonal) router according to ГОСТ / ДСТУ 19.701-90.
+ * Guarantees clean 90° bends, avoidance of self-intersection, and proper loopback corridors.
  */
 export function calculateOrthogonalRoute(p1, dir1, p2, dir2) {
   if (!p1 || !p2) return [p1, p2];
 
-  // Straight line snap if nearly colinear
+  let raw = [];
+
+  // 1. Straight line snap only if colinear AND target is ahead in flow direction
   if (
     Math.abs(p1.x - p2.x) < 4 &&
-    ((dir1 === "down" && dir2 === "up") || (dir1 === "up" && dir2 === "down"))
+    ((dir1 === "down" && dir2 === "up" && p2.y >= p1.y + 4) ||
+      (dir1 === "up" && dir2 === "down" && p2.y <= p1.y - 4))
   ) {
     return [p1, { x: p1.x, y: p2.y }];
   }
   if (
     Math.abs(p1.y - p2.y) < 4 &&
-    ((dir1 === "right" && dir2 === "left") || (dir1 === "left" && dir2 === "right"))
+    ((dir1 === "right" && dir2 === "left" && p2.x >= p1.x + 4) ||
+      (dir1 === "left" && dir2 === "right" && p2.x <= p1.x - 4))
   ) {
     return [p1, { x: p2.x, y: p1.y }];
   }
 
-  // Natural Flow Down -> Up (most common flowchart flow)
-  if (dir1 === "down" && dir2 === "up" && p2.y > p1.y + 12) {
-    const midY = Math.round((p1.y + p2.y) / 2);
-    return [p1, { x: p1.x, y: midY }, { x: p2.x, y: midY }, p2];
-  }
-
-  // Natural Flow Up -> Down (loopbacks)
-  if (dir1 === "up" && dir2 === "down" && p2.y < p1.y - 12) {
-    const midY = Math.round((p1.y + p2.y) / 2);
-    return [p1, { x: p1.x, y: midY }, { x: p2.x, y: midY }, p2];
-  }
-
-  // Horizontal Flow Right -> Left
-  if (dir1 === "right" && dir2 === "left" && p2.x > p1.x + 12) {
-    const midX = Math.round((p1.x + p2.x) / 2);
-    return [p1, { x: midX, y: p1.y }, { x: midX, y: p2.y }, p2];
-  }
-
-  // Horizontal Flow Left -> Right
-  if (dir1 === "left" && dir2 === "right" && p2.x < p1.x - 12) {
-    const midX = Math.round((p1.x + p2.x) / 2);
-    return [p1, { x: midX, y: p1.y }, { x: midX, y: p2.y }, p2];
-  }
-
-  // Corner Transitions (e.g. Branch out Right then Down to Top of target)
-  if (dir1 === "right") {
-    if (dir2 === "up" && p2.y > p1.y) {
-      return [p1, { x: p2.x, y: p1.y }, p2];
-    }
-    if (dir2 === "down" && p2.y < p1.y) {
-      return [p1, { x: p2.x, y: p1.y }, p2];
+  // 2. Primary Flow: Down -> Up (Standard flowchart flow)
+  if (dir1 === "down" && dir2 === "up") {
+    if (p2.y >= p1.y + 10) {
+      const midY = Math.round((p1.y + p2.y) / 2);
+      raw = [p1, { x: p1.x, y: midY }, { x: p2.x, y: midY }, p2];
+    } else {
+      // Loopback: target is above source! Route through outer side corridor per ДСТУ 19.701-90
+      const corridorX = Math.min(p1.x, p2.x) - 45;
+      raw = [
+        p1,
+        { x: p1.x, y: p1.y + 18 },
+        { x: corridorX, y: p1.y + 18 },
+        { x: corridorX, y: p2.y - 18 },
+        { x: p2.x, y: p2.y - 18 },
+        p2,
+      ];
     }
   }
 
-  if (dir1 === "left") {
-    if (dir2 === "up" && p2.y > p1.y) {
-      return [p1, { x: p2.x, y: p1.y }, p2];
-    }
-    if (dir2 === "down" && p2.y < p1.y) {
-      return [p1, { x: p2.x, y: p1.y }, p2];
+  // 3. Up -> Down (Loopback / upward jump)
+  else if (dir1 === "up" && dir2 === "down") {
+    if (p2.y <= p1.y - 10) {
+      const midY = Math.round((p1.y + p2.y) / 2);
+      raw = [p1, { x: p1.x, y: midY }, { x: p2.x, y: midY }, p2];
+    } else {
+      const corridorX = Math.min(p1.x, p2.x) - 45;
+      raw = [
+        p1,
+        { x: p1.x, y: p1.y - 18 },
+        { x: corridorX, y: p1.y - 18 },
+        { x: corridorX, y: p2.y + 18 },
+        { x: p2.x, y: p2.y + 18 },
+        p2,
+      ];
     }
   }
 
-  // Fallback Z-step via breakout stubs
-  const sOffset = getStubPoint(p1, dir1, 20);
-  const tOffset = getStubPoint(p2, dir2, 20);
-
-  if (dir1 === "down" || dir1 === "up") {
-    return [p1, sOffset, { x: tOffset.x, y: sOffset.y }, tOffset, p2];
+  // 4. Right -> Left (Horizontal Flow)
+  else if (dir1 === "right" && dir2 === "left") {
+    if (p2.x >= p1.x + 10) {
+      const midX = Math.round((p1.x + p2.x) / 2);
+      raw = [p1, { x: midX, y: p1.y }, { x: midX, y: p2.y }, p2];
+    } else {
+      const corridorY = Math.max(p1.y, p2.y) + 35;
+      raw = [
+        p1,
+        { x: p1.x + 20, y: p1.y },
+        { x: p1.x + 20, y: corridorY },
+        { x: p2.x - 20, y: corridorY },
+        { x: p2.x - 20, y: p2.y },
+        p2,
+      ];
+    }
   }
-  return [p1, sOffset, { x: sOffset.x, y: tOffset.y }, tOffset, p2];
+
+  // 5. Left -> Right (Horizontal Flow)
+  else if (dir1 === "left" && dir2 === "right") {
+    if (p2.x <= p1.x - 10) {
+      const midX = Math.round((p1.x + p2.x) / 2);
+      raw = [p1, { x: midX, y: p1.y }, { x: midX, y: p2.y }, p2];
+    } else {
+      const corridorY = Math.max(p1.y, p2.y) + 35;
+      raw = [
+        p1,
+        { x: p1.x - 20, y: p1.y },
+        { x: p1.x - 20, y: corridorY },
+        { x: p2.x + 20, y: corridorY },
+        { x: p2.x + 20, y: p2.y },
+        p2,
+      ];
+    }
+  }
+
+  // 6. Right -> Up (Branching out right, entering target top)
+  else if (dir1 === "right" && dir2 === "up") {
+    if (p2.x >= p1.x + 10 && p2.y >= p1.y) {
+      raw = [p1, { x: p2.x, y: p1.y }, p2];
+    } else {
+      raw = [
+        p1,
+        { x: p1.x + 24, y: p1.y },
+        { x: p1.x + 24, y: p2.y - 18 },
+        { x: p2.x, y: p2.y - 18 },
+        p2,
+      ];
+    }
+  }
+
+  // 7. Left -> Up (Branching out left, entering target top)
+  else if (dir1 === "left" && dir2 === "up") {
+    if (p2.x <= p1.x - 10 && p2.y >= p1.y) {
+      raw = [p1, { x: p2.x, y: p1.y }, p2];
+    } else {
+      raw = [
+        p1,
+        { x: p1.x - 24, y: p1.y },
+        { x: p1.x - 24, y: p2.y - 18 },
+        { x: p2.x, y: p2.y - 18 },
+        p2,
+      ];
+    }
+  }
+
+  // 8. Down -> Left / Right (Bottom exit turning to side)
+  else if (dir1 === "down") {
+    if (dir2 === "left") {
+      raw = [p1, { x: p1.x, y: p2.y }, p2];
+    } else if (dir2 === "right") {
+      raw = [p1, { x: p1.x, y: p2.y }, p2];
+    } else {
+      const sOffset = getStubPoint(p1, dir1, 20);
+      const tOffset = getStubPoint(p2, dir2, 20);
+      raw = [p1, sOffset, { x: tOffset.x, y: sOffset.y }, tOffset, p2];
+    }
+  }
+
+  // 9. Right / Left -> Down
+  else if (dir1 === "right" && dir2 === "down") {
+    if (p2.x >= p1.x + 10 && p2.y <= p1.y) {
+      raw = [p1, { x: p2.x, y: p1.y }, p2];
+    } else {
+      raw = [
+        p1,
+        { x: p1.x + 20, y: p1.y },
+        { x: p1.x + 20, y: p2.y + 18 },
+        { x: p2.x, y: p2.y + 18 },
+        p2,
+      ];
+    }
+  } else if (dir1 === "left" && dir2 === "down") {
+    if (p2.x <= p1.x - 10 && p2.y <= p1.y) {
+      raw = [p1, { x: p2.x, y: p1.y }, p2];
+    } else {
+      raw = [
+        p1,
+        { x: p1.x - 20, y: p1.y },
+        { x: p1.x - 20, y: p2.y + 18 },
+        { x: p2.x, y: p2.y + 18 },
+        p2,
+      ];
+    }
+  }
+
+  // 10. Fallback: Orthogonal Stubs
+  else {
+    const sOffset = getStubPoint(p1, dir1, 20);
+    const tOffset = getStubPoint(p2, dir2, 20);
+    if (dir1 === "down" || dir1 === "up") {
+      raw = [p1, sOffset, { x: tOffset.x, y: sOffset.y }, tOffset, p2];
+    } else {
+      raw = [p1, sOffset, { x: sOffset.x, y: tOffset.y }, tOffset, p2];
+    }
+  }
+
+  return simplifyOrthogonalRoute(raw);
 }
 
 /**

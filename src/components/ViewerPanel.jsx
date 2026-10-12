@@ -2,6 +2,7 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Columns, Rows } from "lucide-react";
 import CanvasControls from "./CanvasControls";
 import DiagramCard from "./DiagramCard";
+import { isPhysicalMouseWheel } from "../utils/diagramGraph.js";
 
 export default function ViewerPanel({
   activeTab,
@@ -169,10 +170,19 @@ export default function ViewerPanel({
       e.preventDefault();
       const currentZoom = zoomRef.current;
       const currentPan = panRef.current;
+      const isMouseWheel = isPhysicalMouseWheel(e);
 
-      if (e.ctrlKey || e.metaKey) {
-        const zoomDelta = -e.deltaY * 0.005;
-        const targetZoom = clampZoom(currentZoom + zoomDelta);
+      if (e.ctrlKey || e.metaKey || isMouseWheel) {
+        // Zoom anchored at cursor (mouse wheel scroll OR trackpad pinch/Ctrl+wheel)
+        let targetZoom;
+        if (isMouseWheel) {
+          const step = -Math.sign(e.deltaY) * 0.12;
+          targetZoom = clampZoom(currentZoom + step);
+        } else {
+          const zoomDelta = -e.deltaY * 0.005;
+          targetZoom = clampZoom(currentZoom + zoomDelta);
+        }
+
         const rect = ws.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -181,14 +191,15 @@ export default function ViewerPanel({
         const worldY = (mouseY - currentPan.y) / currentZoom;
 
         setPan({
-          x: mouseX - worldX * targetZoom,
-          y: mouseY - worldY * targetZoom,
+          x: Math.round(mouseX - worldX * targetZoom),
+          y: Math.round(mouseY - worldY * targetZoom),
         });
         setZoom(targetZoom);
       } else {
+        // Trackpad two-finger smooth 2D pan
         setPan((prev) => ({
-          x: prev.x - e.deltaX * 0.9,
-          y: prev.y - e.deltaY * 0.9,
+          x: Math.round(prev.x - e.deltaX * 0.95),
+          y: Math.round(prev.y - e.deltaY * 0.95),
         }));
       }
     };

@@ -2419,6 +2419,10 @@ html.dark .visual-editor-canvas-container {
     cursor: grabbing !important;
 }
 
+.drawio-canvas-area.marquee-mode {
+    cursor: crosshair !important;
+}
+
 .drawio-svg-canvas {
     width: 100%;
     height: 100%;
@@ -2669,8 +2673,7 @@ html.dark .visual-editor-canvas-container {
 }
 
 .prop-textarea,
-.prop-input,
-.prop-select {
+.prop-input {
     width: 100%;
     padding: 7px 9px;
     font-size: 12.5px;
@@ -2683,10 +2686,36 @@ html.dark .visual-editor-canvas-container {
     transition: border-color 0.15s ease;
 }
 
+.prop-select {
+    width: 100%;
+    padding: 7px 28px 7px 9px;
+    font-size: 12.5px;
+    font-weight: 500;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background-color: #f8fafc;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    color: #0f172a;
+    outline: none;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
 .drawio-modal-overlay.dark .prop-textarea,
-.drawio-modal-overlay.dark .prop-input,
-.drawio-modal-overlay.dark .prop-select {
+.drawio-modal-overlay.dark .prop-input {
     background: #0f172a;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+.drawio-modal-overlay.dark .prop-select {
+    background-color: #0f172a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     border-color: #334155;
     color: #f8fafc;
 }
@@ -2736,18 +2765,81 @@ html.dark .visual-editor-canvas-container {
     color: #f8fafc;
 }
 
-.prop-checkbox {
+.prop-custom-checkbox {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     font-size: 12.5px;
     font-weight: 500;
     color: #1e293b;
     cursor: pointer;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    transition: all 0.15s ease;
+    user-select: none;
 }
 
-.drawio-modal-overlay.dark .prop-checkbox {
+.drawio-modal-overlay.dark .prop-custom-checkbox {
+    background: #0f172a;
+    border-color: #334155;
     color: #f1f5f9;
+}
+
+.prop-custom-checkbox:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+}
+
+.drawio-modal-overlay.dark .prop-custom-checkbox:hover {
+    background: rgba(37, 99, 235, 0.15);
+    border-color: #3b82f6;
+}
+
+.custom-check-box {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.8px solid #94a3b8;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.drawio-modal-overlay.dark .custom-check-box {
+    background: #1e293b;
+    border-color: #64748b;
+}
+
+.custom-check-box.checked {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+
+.prop-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
 }
 
 .prop-section-actions {
