@@ -307,15 +307,15 @@ export default function DiagramEditorModal({
 
   // Colors based on editor theme
   const colors = {
-    canvasBg: editorThemeDark ? "#0b1120" : "#f8fafc",
+    canvasBg: editorThemeDark ? "#090d16" : "#f8fafc",
     gridDot: editorThemeDark ? "#334155" : "#cbd5e1",
     nodeFill: editorThemeDark ? "#1e293b" : "#ffffff",
-    nodeStroke: editorThemeDark ? "#94a3b8" : "#334155",
+    nodeStroke: editorThemeDark ? "#64748b" : "#1e293b",
     nodeText: editorThemeDark ? "#f8fafc" : "#0f172a",
-    edgeStroke: editorThemeDark ? "#60a5fa" : "#334155",
+    edgeStroke: editorThemeDark ? "#38bdf8" : "#1e293b",
     edgeSelected: "#2563eb",
     anchorFill: editorThemeDark ? "#38bdf8" : "#2563eb",
-    anchorBorder: editorThemeDark ? "#0f172a" : "#ffffff",
+    anchorBorder: editorThemeDark ? "#090d16" : "#ffffff",
   };
 
   // Re-route an edge using ports or waypoints
@@ -690,9 +690,9 @@ export default function DiagramEditorModal({
     setSelectedEdgeId(null);
   };
 
-  // Save changes
+  // Save changes (ALWAYS export standard clean paper-white SVG for reports/cards/print)
   const handleSaveAndClose = () => {
-    const regeneratedSvg = graphToSvg(graph, { isDark: editorThemeDark });
+    const regeneratedSvg = graphToSvg(graph, { isDark: false });
     onSave(regeneratedSvg, diagramType);
     onClose();
   };
@@ -883,6 +883,17 @@ export default function DiagramEditorModal({
                 >
                   <path d="M 1 2 L 10 6 L 1 10 z" fill="#10b981" />
                 </marker>
+                <marker
+                  id="arrow-uml"
+                  viewBox="0 0 12 12"
+                  refX="10"
+                  refY="6"
+                  markerWidth="6.5"
+                  markerHeight="6.5"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 1 2 L 10 6 L 1 10 z" fill={colors.edgeStroke} />
+                </marker>
               </defs>
 
               {/* Background with Grid */}
@@ -923,7 +934,9 @@ export default function DiagramEditorModal({
                     const markerUrl = edge.hasArrow
                       ? isSelected
                         ? "url(#arrow-flow-selected)"
-                        : "url(#arrow-flow)"
+                        : edge.marker === "arrow-uml"
+                          ? "url(#arrow-uml)"
+                          : "url(#arrow-flow)"
                       : undefined;
 
                     return (
@@ -963,7 +976,7 @@ export default function DiagramEditorModal({
                             fontFamily="system-ui, sans-serif"
                             fontSize="13"
                             fontWeight="bold"
-                            fill={editorThemeDark ? "#f8fafc" : "#0f172a"}
+                            fill={editorThemeDark ? "#38bdf8" : "#0f172a"}
                             cursor="pointer"
                             onDoubleClick={(e) => {
                               e.stopPropagation();

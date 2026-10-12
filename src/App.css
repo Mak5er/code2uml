@@ -633,14 +633,23 @@ html.dark .pane-collapse-btn:hover {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .code-status-text {
     font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .supported-text {
     font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
 }
 
 .panel-credits {

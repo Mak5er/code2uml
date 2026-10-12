@@ -336,12 +336,12 @@ export function extractGraphFromSvg(svgString, diagramType = "flowchart") {
 
       nodes.forEach((n) => {
         const nearS = getNearestAnchorPort(n, pStart);
-        if (nearS.dist < 20) {
+        if (nearS.dist < 36) {
           sourceNodeId = n.id;
           sourcePort = nearS.portName;
         }
         const nearT = getNearestAnchorPort(n, pEnd);
-        if (nearT.dist < 20) {
+        if (nearT.dist < 36) {
           targetNodeId = n.id;
           targetPort = nearT.portName;
         }
@@ -481,7 +481,7 @@ export function graphToSvg(graph, options = {}) {
   const edgeSvgs = edges.map((e) => {
     const pts = e.points;
     if (pts.length < 2) return "";
-    const marker = e.hasArrow ? ` marker-end="url(#${isDark ? "arrow-flow-dark" : "arrow-flow"})"` : "";
+    const marker = e.hasArrow ? ` marker-end="url(#${isDark ? "arrow-flow-dark" : (e.marker || "arrow-flow")})"` : "";
 
     let lineMarkup = "";
     if (pts.length === 2) {

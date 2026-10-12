@@ -70,14 +70,14 @@ function compileCode(
 
   const funcLabel =
     baseAst.functions && baseAst.functions.length > 1
-      ? ` (функція ${baseAst.functionName})`
+      ? ` (${baseAst.functionName})`
       : "";
 
   return {
     flowchartSvg: fcResult.svg,
     umlSvg: umlResult.svg,
     structureChartSvg: scResult.svg,
-    status: `✓ Готово: розібрано ${ast.length} операторів${funcLabel}`,
+    status: `✓ ${ast.length} опер.${funcLabel}`,
     count: ast.length,
     functions: baseAst.functions || [],
     activeFunction: baseAst.functionName || "main",
