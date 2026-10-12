@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { copyPngToClipboard } from '../utils/exportUtils.js';
+import { trackEvent } from '../utils/analytics.js';
 
 export default function DiagramCard({
     id,
@@ -39,12 +40,28 @@ export default function DiagramCard({
         try {
             await copyPngToClipboard(svgEl);
             setCopied(true);
+            trackEvent('copy_diagram_to_clipboard', {
+                diagram_id: id,
+                diagram_title: title,
+            });
             if (onToast) onToast('Діаграму скопійовано в буфер! Вставте у Word (Ctrl+V)');
             setTimeout(() => setCopied(false), 2200);
         } catch (err) {
             console.error('Copy PNG failed:', err);
+            trackEvent('copy_diagram_error', {
+                diagram_id: id,
+                error_message: String(err?.message || err),
+            });
             if (onToast) onToast('Не вдалося скопіювати в буфер (потрібен HTTPS/сучасний браузер)');
         }
+    };
+
+    const handleEditClick = () => {
+        trackEvent('card_click_edit', {
+            diagram_id: id,
+            diagram_title: title,
+        });
+        if (onEdit) onEdit();
     };
 
     return (
@@ -59,7 +76,7 @@ export default function DiagramCard({
                     {onEdit && (
                         <button
                             className="btn-card-action btn-card-edit"
-                            onClick={onEdit}
+                            onClick={handleEditClick}
                             title={`Редагувати блоки схеми (${title})`}
                         >
                             ✏️ Редагувати
