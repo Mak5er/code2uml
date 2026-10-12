@@ -30,7 +30,7 @@ function compileCode(
       flowchartSvg: "",
       umlSvg: "",
       structureChartSvg: "",
-      status: "Поле коду порожнє",
+      status: "Введіть код",
       count: 0,
       functions: [],
       activeFunction: "main",
@@ -68,16 +68,14 @@ function compileCode(
   const scRenderer = new StructureChartRenderer(baseAst);
   const scResult = scRenderer.render();
 
-  const funcLabel =
-    baseAst.functions && baseAst.functions.length > 1
-      ? ` (${baseAst.functionName})`
-      : "";
+  const count = ast.length;
+  const opWord = count === 1 ? "оператор" : count >= 2 && count <= 4 ? "оператори" : "операторів";
 
   return {
     flowchartSvg: fcResult.svg,
     umlSvg: umlResult.svg,
     structureChartSvg: scResult.svg,
-    status: `✓ ${ast.length} опер.${funcLabel}`,
+    status: `✓ ${count} ${opWord}`,
     count: ast.length,
     functions: baseAst.functions || [],
     activeFunction: baseAst.functionName || "main",
@@ -131,7 +129,7 @@ export default function App() {
     }
   });
 
-  const [status, setStatus] = useState("Поле коду порожнє");
+  const [status, setStatus] = useState("Введіть код");
   const [flowchartSvg, setFlowchartSvg] = useState("");
   const [umlSvg, setUmlSvg] = useState("");
   const [structureChartSvg, setStructureChartSvg] = useState("");
@@ -275,7 +273,7 @@ export default function App() {
         setFlowchartSvg("");
         setUmlSvg("");
         setStructureChartSvg("");
-        setStatus("Поле коду порожнє");
+        setStatus("Введіть код");
         setFunctions([]);
         setCurrentAst([]);
         if (!silent) showToast("Введіть або вставте C++ код");
