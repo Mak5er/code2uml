@@ -11,7 +11,7 @@ import { FlowchartRenderer } from "./renderers/flowchartRenderer";
 import { UmlRenderer } from "./renderers/umlRenderer";
 import { StructureChartRenderer } from "./renderers/structureChartRenderer";
 import { exportSvg, exportPng } from "./utils/exportUtils";
-import { trackEvent } from "./utils/analytics";
+import { trackEvent, trackTimeToFirstAction } from "./utils/analytics";
 import "./App.css";
 
 function compileCode(
@@ -202,6 +202,7 @@ export default function App() {
         try {
           localStorage.setItem("editorWidth", String(w));
         } catch {}
+        trackEvent("resize_editor_pane", { width_px: w });
         return w;
       });
     };
@@ -213,6 +214,7 @@ export default function App() {
   const handleToggleCollapseEditor = () => {
     setIsEditorCollapsed((prev) => {
       const next = !prev;
+      trackEvent("toggle_editor_collapse", { collapsed: next });
       try {
         localStorage.setItem("isEditorCollapsed", String(next));
       } catch {}
@@ -238,6 +240,7 @@ export default function App() {
   }, [isDark]);
 
   const showToast = useCallback((message) => {
+    trackEvent("toast_shown", { message_snippet: message.substring(0, 50) });
     setToast({ message, isVisible: true });
     setTimeout(() => {
       setToast((prev) => ({ ...prev, isVisible: false }));
@@ -280,6 +283,7 @@ export default function App() {
         return;
       }
 
+      const tStart = performance.now();
       try {
         const funcToUse = targetFunc || selectedFunction;
         const expMode = modeToUse || expressionMode;
@@ -300,6 +304,8 @@ export default function App() {
           customAst,
         );
 
+        const durationMs = Math.round(performance.now() - tStart);
+
         setFlowchartSvg(res.flowchartSvg);
         setUmlSvg(res.umlSvg);
         setStructureChartSvg(res.structureChartSvg);
@@ -310,9 +316,11 @@ export default function App() {
           setSelectedFunction(res.activeFunction);
         }
         if (!silent) {
+          trackTimeToFirstAction("time_to_first_diagram");
           trackEvent("generate_diagrams", {
             code_length: trimmed.length,
             lines_count: trimmed.split("\n").length,
+            duration_ms: durationMs,
             expression_mode: expMode,
             arrow_rule: arrRule,
             columns_mode: String(cols),
@@ -484,6 +492,7 @@ export default function App() {
 
   const handleDownloadCardSvg = (svgEl, name) => {
     if (!svgEl) return;
+    trackTimeToFirstAction("time_to_first_export", { format: "svg" });
     trackEvent("export_diagram", {
       format: "svg",
       diagram_type: name,
@@ -495,6 +504,7 @@ export default function App() {
 
   const handleDownloadCardPng = async (svgEl, name) => {
     if (!svgEl) return;
+    trackTimeToFirstAction("time_to_first_export", { format: "png" });
     trackEvent("export_diagram", {
       format: "png",
       diagram_type: name,

@@ -39,7 +39,21 @@ export default function CodeEditor({
             }, 0);
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
+            trackEvent('keyboard_shortcut_generate', { key_combo: 'ctrl_enter' });
             onGenerate();
+        }
+    };
+
+    const handlePaste = (e) => {
+        const text = e.clipboardData ? e.clipboardData.getData('text') : '';
+        if (text && text.trim().length > 5) {
+            trackEvent('code_pasted', {
+                characters_count: text.length,
+                lines_count: text.split('\n').length,
+                has_include: text.includes('#include'),
+                has_main: text.includes('main'),
+                has_split: text.includes('[split]'),
+            });
         }
     };
 
@@ -74,6 +88,7 @@ export default function CodeEditor({
                     onChange={(e) => onChange(e.target.value)}
                     onScroll={handleScroll}
                     onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
                     spellCheck="false"
                     placeholder="// Вставте або напишіть C++ код сюди... (розрив на колонки: // [split])"
                 />

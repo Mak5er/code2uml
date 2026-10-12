@@ -29,6 +29,7 @@ export default function ViewerPanel({
   const [pan, setPan] = useState({ x: 40, y: 40 });
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
+  const inputDeviceTrackedRef = useRef(false);
 
   const [diagramsLayout, setDiagramsLayout] = useState(() => {
     try {
@@ -181,6 +182,13 @@ export default function ViewerPanel({
       const currentZoom = zoomRef.current;
       const currentPan = panRef.current;
       const isMouseWheel = isPhysicalMouseWheel(e);
+
+      if (!inputDeviceTrackedRef.current) {
+        inputDeviceTrackedRef.current = true;
+        trackEvent("input_device_detected", {
+          device: isMouseWheel ? "mouse_wheel" : "trackpad_or_magic_mouse",
+        });
+      }
 
       if (e.ctrlKey || e.metaKey || isMouseWheel) {
         // Zoom anchored at cursor (mouse wheel scroll OR trackpad pinch/Ctrl+wheel)

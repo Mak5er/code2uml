@@ -48,6 +48,10 @@ export default function DiagramCard({
             setTimeout(() => setCopied(false), 2200);
         } catch (err) {
             console.error('Copy PNG failed:', err);
+            trackEvent('copy_diagram_error', {
+                diagram_id: id,
+                error_message: String(err?.message || err),
+            });
             if (onToast) onToast('Не вдалося скопіювати в буфер (потрібен HTTPS/сучасний браузер)');
         }
     };

@@ -1089,6 +1089,7 @@ export default function DiagramEditorModal({
   // Double click to edit text inline
   const handleNodeDoubleClick = (e, node) => {
     e.stopPropagation();
+    trackEvent("editor_inline_edit_text", { node_type: node.type });
     setEditingNodeId(node.id);
     setEditingText(node.text);
   };
@@ -1146,6 +1147,7 @@ export default function DiagramEditorModal({
   // Properties: Update Node Type
   const handleUpdateNodeType = (newType) => {
     if (!selectedNodeId) return;
+    trackEvent("editor_change_node_type", { new_type: newType });
     const shapeDef = ALL_SHAPES.find((s) => s.type === newType);
     const nextNodes = graph.nodes.map((n) => {
       if (n.id !== selectedNodeId) return n;
