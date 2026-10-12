@@ -137,16 +137,18 @@ class FlowchartRenderer {
 
   layoutPrimitive(node, type) {
     if (type === "start") {
-      const w = 110;
+      const isSubroutine = Boolean(this.ast.functionName && this.ast.functionName !== "main");
+      const defaultText = isSubroutine ? (this.ast.functionSignature || this.ast.functionName) : "початок";
+      const text = this.options.startText || defaultText;
+      const w = Math.max(110, text.length * 8.8 + 36);
       const h = 42;
-      const text = this.options.startText || "початок";
       return {
         w,
         h,
         cx: w / 2,
         render: (x, y) => {
           this.bounds.addRect(x, y, w, h);
-          this.elements.push(SVG.stadium(x + w / 2, y + h / 2, w, h, text));
+          this.elements.push(SVG.stadium(x + w / 2, y + h / 2, w, h, text, { nodeId: 'start_node' }));
         },
       };
     }
@@ -159,13 +161,18 @@ class FlowchartRenderer {
         cx: w / 2,
         render: (x, y) => {
           this.bounds.addRect(x, y, w, h);
-          this.elements.push(SVG.stadium(x + w / 2, y + h / 2, w, h, "кінець"));
+          this.elements.push(SVG.stadium(x + w / 2, y + h / 2, w, h, "кінець", { nodeId: 'end_node' }));
         },
       };
     }
 
     const isIO = type === "input" || type === "output";
     const dim = this.calcActionDimensions(node, isIO);
+    const isPredefined = Boolean(
+      node &&
+      (node.isPredefined || node.isFunctionCall) &&
+      this.options.functionCallStyle !== "process"
+    );
     return {
       w: dim.w,
       h: dim.h,
@@ -186,21 +193,25 @@ class FlowchartRenderer {
               dim.frac.denText,
               {
                 isUml: false,
+                isPredefined,
                 prefix: dim.frac.prefix,
                 suffix: dim.frac.suffix,
+                nodeId: node?.id
               }
             )
           );
         } else if (type === "input") {
-          this.elements.push(SVG.parallelogram(cx, cy, dim.w, dim.h, dim.lines));
+          this.elements.push(SVG.parallelogram(cx, cy, dim.w, dim.h, dim.lines, { nodeId: node?.id }));
         } else if (type === "output") {
           if (this.options.outputShape === "parallelogram") {
-            this.elements.push(SVG.parallelogram(cx, cy, dim.w, dim.h, dim.lines));
+            this.elements.push(SVG.parallelogram(cx, cy, dim.w, dim.h, dim.lines, { nodeId: node?.id }));
           } else {
-            this.elements.push(SVG.document(cx, cy, dim.w, dim.h, dim.lines));
+            this.elements.push(SVG.document(cx, cy, dim.w, dim.h, dim.lines, { nodeId: node?.id }));
           }
+        } else if (isPredefined) {
+          this.elements.push(SVG.predefinedProcess(cx, cy, dim.w, dim.h, dim.lines, { nodeId: node?.id }));
         } else {
-          this.elements.push(SVG.rectangle(cx, cy, dim.w, dim.h, dim.lines));
+          this.elements.push(SVG.rectangle(cx, cy, dim.w, dim.h, dim.lines, { nodeId: node?.id }));
         }
       },
     };

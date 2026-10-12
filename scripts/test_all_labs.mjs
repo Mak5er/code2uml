@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { parseCppCode } from '../src/parser/cppParser.js';
 import { FlowchartRenderer } from '../src/renderers/flowchartRenderer.js';
 import { UmlRenderer } from '../src/renderers/umlRenderer.js';
+import { StructureChartRenderer } from '../src/renderers/structureChartRenderer.js';
 
 const outDir = '/tmp/lab_tests';
 if (!fs.existsSync(outDir)) {
@@ -157,12 +158,144 @@ int main() {
     return 0;
 }
 `
+    },
+    {
+        id: 'lab5_2_variant0',
+        name: 'Lab 5.2 Variant 0 (Taylor Series with void functions and reference parameters)',
+        code: `#include <iostream>
+#include <cmath>
+using namespace std;
+
+void S(const double x, const double eps, int &n, double &s);
+void A(const double x, const int n, double &a);
+
+int main() {
+    double xp, xk, eps, s = 0;
+    int n = 0;
+    cout << "xp = "; cin >> xp;
+    cout << "xk = "; cin >> xk;
+    cout << "eps = "; cin >> eps;
+
+    S(xp, eps, n, s);
+    cout << "s = " << s << endl;
+    return 0;
+}
+
+void S(const double x, const double eps, int &n, double &s) {
+    n = 0;
+    double a = -x * x / 2;
+    s = a;
+    do {
+        n++;
+        A(x, n, a);
+        s += a;
+    } while (abs(a) >= eps);
+}
+
+void A(const double x, const int n, double &a) {
+    double R = -x * x / ((2 * n) * (2 * n + 1));
+    a *= R;
+}`
+    },
+    {
+        id: 'lab5_3_variant0',
+        name: 'Lab 5.3 Variant 0 (Tabulation with helper function called in while loop)',
+        code: `#include <iostream>
+#include <cmath>
+using namespace std;
+
+double p(const double x);
+
+int main() {
+    double gp, gk, z;
+    int n;
+    cout << "gp = "; cin >> gp;
+    cout << "gk = "; cin >> gk;
+    cout << "n = "; cin >> n;
+
+    double dg = (gk - gp) / n;
+    double g = gp;
+
+    while (g <= gk) {
+        z = p(1 - g * g) + pow(p(1 + g), 2);
+        cout << "z = " << z << endl;
+        g += dg;
+    }
+    return 0;
+}
+
+double p(const double x) {
+    if (x >= 0)
+        return exp(x) + sin(x);
+    else
+        return exp(-x) + cos(x);
+}`
+    },
+    {
+        id: 'lab5_4_variant0',
+        name: 'Lab 5.4 Variant 0 (Iterative S0 and recursive S1 sums)',
+        code: `#include <iostream>
+#include <cmath>
+using namespace std;
+
+double S0(const int K, const int N) {
+    double s = 0;
+    for (int i = K; i <= N; i++)
+        s += sin(1. * i);
+    return s;
+}
+
+double S1(const int K, const int N, const int i) {
+    if (i > N)
+        return 0;
+    else
+        return sin(1. * i) + S1(K, N, i + 1);
+}
+
+int main() {
+    int K, N;
+    cout << "K = "; cin >> K;
+    cout << "N = "; cin >> N;
+
+    cout << "S0 = " << S0(K, N) << endl;
+    cout << "S1 = " << S1(K, N, K) << endl;
+    return 0;
+}`
+    },
+    {
+        id: 'lab5_5_variant0',
+        name: 'Lab 5.5 Variant 0 (Recursive factorial with recursion loop)',
+        code: `#include <iostream>
+using namespace std;
+
+int f(int n) {
+    if (n > 1)
+        return n * f(n - 1);
+    return 1;
+}
+
+int main() {
+    int k;
+    cout << "k = "; cin >> k;
+    int P = f(k);
+    cout << "k! = " << P << endl;
+    return 0;
+}`
     }
 ];
 
 for (const tc of testCases) {
     console.log(`Processing: ${tc.name}`);
     const initialAst = parseCppCode(tc.code);
+
+    // Generate Structure Chart for multi-function programs
+    if (initialAst.functions && initialAst.functions.length > 1) {
+        const scRenderer = new StructureChartRenderer(initialAst);
+        const scResult = scRenderer.render();
+        const scSvgPath = path.join(outDir, `${tc.id}_sc.svg`);
+        fs.writeFileSync(scSvgPath, scResult.svg);
+        console.log(`  Structure Chart: ${tc.id}_sc.svg`);
+    }
 
     const funcNames = (initialAst.functions && initialAst.functions.length > 0)
         ? initialAst.functions.map(f => f.name)

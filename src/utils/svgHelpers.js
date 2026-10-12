@@ -194,9 +194,33 @@ const SVG = {
         });
 
         return `
-        <g class="diagram-node process-node">
+        <g class="diagram-node process-node"${options.nodeId ? ` data-node-id="${options.nodeId}"` : ''}>
             <rect x="${x}" y="${y}" width="${width}" height="${height}"
                 fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+            ${textSvg}
+        </g>
+        `;
+    },
+
+    // 3c. Predefined Process (ДСТУ 19.701-90 Зумовлений процес: виклик підпрограми / функції)
+    predefinedProcess(cx, cy, width, height, text, options = {}) {
+        const x = cx - width / 2;
+        const y = cy - height / 2;
+        const inset = options.inset || 10;
+        const strokeColor = options.stroke || '#1e293b';
+        const fillColor = options.fill || '#ffffff';
+        const textSvg = this.renderTextLines(cx, cy, text, {
+            textColor: options.textColor || '#0f172a',
+            size: 13.5
+        });
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
+
+        return `
+        <g class="diagram-node process-node predefined-process-node"${nodeIdAttr}>
+            <rect x="${x}" y="${y}" width="${width}" height="${height}"
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+            <line x1="${x + inset}" y1="${y}" x2="${x + inset}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
+            <line x1="${x + width - inset}" y1="${y}" x2="${x + width - inset}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
             ${textSvg}
         </g>
         `;
@@ -236,10 +260,10 @@ const SVG = {
                 font-family="${FONT_STACK}" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(leftText)}</text>`;
         }
         contentSvg += `<text x="${fracCenterX}" y="${cy - 11}" text-anchor="middle" dominant-baseline="central"
-            font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(numText)}</text>`;
+                font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(numText)}</text>`;
         contentSvg += `<line x1="${barX1}" y1="${cy}" x2="${barX2}" y2="${cy}" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" />`;
         contentSvg += `<text x="${fracCenterX}" y="${cy + 12}" text-anchor="middle" dominant-baseline="central"
-            font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(denText)}</text>`;
+                font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${textColor}">${this.escapeXml(denText)}</text>`;
         if (suffix) {
             contentSvg += `<text x="${rightX}" y="${cy}" text-anchor="middle" dominant-baseline="central"
                 font-family="${FONT_STACK}" font-size="13.5" font-weight="500" fill="${textColor}">${this.escapeXml(suffix)}</text>`;
@@ -248,11 +272,27 @@ const SVG = {
         const isUml = options.isUml;
         const rx = isUml ? 15 : 0;
         const ry = isUml ? 15 : 0;
+        const lineOffset = isUml ? rx : 10;
+        const clipId = `clip_frac_${Math.round(cx)}_${Math.round(cy)}`;
+        const clipDef = (isUml && (options.isPredefined || options.isCallAction)) ? `
+            <clipPath id="${clipId}">
+                <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${ry}" />
+            </clipPath>
+        ` : '';
+        const predefinedLines = options.isPredefined || options.isCallAction ? `
+            ${clipDef}
+            <g ${clipDef ? `clip-path="url(#${clipId})"` : ''}>
+                <line x1="${x + lineOffset}" y1="${y}" x2="${x + lineOffset}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
+                <line x1="${x + width - lineOffset}" y1="${y}" x2="${x + width - lineOffset}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
+            </g>
+        ` : '';
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
 
         return `
-        <g class="diagram-node process-node fraction-node">
+        <g class="diagram-node process-node fraction-node${options.isPredefined ? ' predefined-process-node' : ''}"${nodeIdAttr}>
             <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${ry}"
                 fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+            ${predefinedLines}
             ${contentSvg}
         </g>
         `;
@@ -316,18 +356,26 @@ const SVG = {
     },
 
     // 6. UML Initial Node (Filled circle)
-    umlInitialNode(cx, cy, r = 11) {
+    umlInitialNode(cx, cy, r = 11, label = null, options = {}) {
+        let labelSvg = '';
+        if (label) {
+            labelSvg = `<text x="${cx - r - 8}" y="${cy}" text-anchor="end" dominant-baseline="central"
+                fill="#0f172a" font-family="${FONT_STACK}" font-size="13" font-weight="600">${this.escapeXml(label)}</text>`;
+        }
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node uml-initial-node">
+        <g class="diagram-node uml-initial-node"${nodeIdAttr}>
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="#0f172a" />
+            ${labelSvg}
         </g>
         `;
     },
 
     // 7. UML Final Node (Bullseye: outer stroke + inner solid)
-    umlFinalNode(cx, cy, r = 13) {
+    umlFinalNode(cx, cy, r = 13, options = {}) {
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node uml-final-node">
+        <g class="diagram-node uml-final-node"${nodeIdAttr}>
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
             <circle cx="${cx}" cy="${cy}" r="${r * 0.58}" fill="#0f172a" />
         </g>
@@ -349,22 +397,38 @@ const SVG = {
             size: 13.5,
             maxChars: 32
         });
+        const clipId = `clip_uml_call_${Math.round(cx)}_${Math.round(cy)}`;
+        const clipDef = options.isCallAction ? `
+            <clipPath id="${clipId}">
+                <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" />
+            </clipPath>
+        ` : '';
+        const callBars = options.isCallAction ? `
+            ${clipDef}
+            <g clip-path="url(#${clipId})">
+                <line x1="${x + rx}" y1="${y}" x2="${x + rx}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
+                <line x1="${x + width - rx}" y1="${y}" x2="${x + width - rx}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
+            </g>
+        ` : '';
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
 
         return `
-        <g class="diagram-node uml-action-node">
+        <g class="diagram-node uml-action-node${options.isCallAction ? ' uml-call-node' : ''}"${nodeIdAttr}>
             <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}"
                 fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+            ${callBars}
             ${textSvg}
         </g>
         `;
     },
 
     // 9. UML Small Diamond (Decision or Merge)
-    umlDiamond(cx, cy, size = 20) {
+    umlDiamond(cx, cy, size = 20, options = {}) {
         const hs = size / 2;
         const points = `${cx},${cy - hs} ${cx + hs},${cy} ${cx},${cy + hs} ${cx - hs},${cy}`;
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node uml-diamond-node">
+        <g class="diagram-node uml-diamond-node"${nodeIdAttr}>
             <polygon points="${points}" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
         </g>
         `;
@@ -375,8 +439,9 @@ const SVG = {
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
         const textColor = options.textColor || '#0f172a';
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node connector-node">
+        <g class="diagram-node connector-node"${nodeIdAttr}>
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
             <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
                 fill="${textColor}" font-family="${FONT_STACK}" font-size="12.5" font-weight="700">${label}</text>

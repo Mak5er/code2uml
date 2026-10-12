@@ -81,8 +81,13 @@ export default function CodeEditor({
 
             <div className="panel-footer">
                 <div className="panel-footer-info">
-                    <span className="code-status-text">{status}</span>
-                    <span className="supported-text">Підтримує: cin, cout, if-else, switch, while, for, do-while, функції, розрив // [split]</span>
+                    <span className="code-status-text" title={status}>{status}</span>
+                    <span
+                        className="supported-text"
+                        title="Підтримує: cin, cout, if-else, switch, while, for, do-while, функції, розрив // [split]"
+                    >
+                        C++: if/else, цикли, функції
+                    </span>
                 </div>
                 <div className="panel-credits">
                     <span>

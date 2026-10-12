@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Header from "./components/Header";
 import CodeEditor from "./components/CodeEditor";
 import ViewerPanel from "./components/ViewerPanel";
+import SettingsModal from "./components/SettingsModal";
+import DiagramEditorModal from "./components/DiagramEditorModal";
 import Toast from "./components/Toast";
 import { parseCppCode } from "./parser/cppParser";
 import { FlowchartRenderer } from "./renderers/flowchartRenderer";
 import { UmlRenderer } from "./renderers/umlRenderer";
+import { StructureChartRenderer } from "./renderers/structureChartRenderer";
 import { exportSvg, exportPng } from "./utils/exportUtils";
 import { trackEvent } from "./utils/analytics";
 import "./App.css";
@@ -17,34 +21,65 @@ function compileCode(
   arrowRule = "gost",
   columns = "auto",
   ioLabels = "clean",
+  functionCallStyle = "predefined",
+  customAst = null,
 ) {
   const trimmed = (sourceCode || "").trim();
   if (!trimmed) {
     return {
       flowchartSvg: "",
       umlSvg: "",
-      status: "Поле коду порожнє",
+      structureChartSvg: "",
+      status: "Введіть код",
       count: 0,
       functions: [],
       activeFunction: "main",
+      ast: [],
     };
   }
-  const ast = parseCppCode(trimmed, { arrowRule, targetFunction });
-  const fcRenderer = new FlowchartRenderer(ast, { arrowRule, expressionMode, columns, ioLabels });
+
+  const baseAst = parseCppCode(trimmed, { arrowRule, targetFunction });
+  const ast = (customAst && customAst.length > 0) ? customAst : baseAst;
+
+  // Preserve metadata on customAst
+  ast.functionName = baseAst.functionName;
+  ast.functionSignature = baseAst.functionSignature;
+  ast.isMain = baseAst.isMain;
+  ast.functions = baseAst.functions;
+  ast.callGraph = baseAst.callGraph;
+  ast.allFunctions = baseAst.allFunctions;
+
+  const fcRenderer = new FlowchartRenderer(ast, {
+    arrowRule,
+    expressionMode,
+    columns,
+    ioLabels,
+    functionCallStyle,
+  });
   const fcResult = fcRenderer.render();
-  const umlRenderer = new UmlRenderer(ast, { expressionMode, columns });
+
+  const umlRenderer = new UmlRenderer(ast, {
+    expressionMode,
+    columns,
+    functionCallStyle,
+  });
   const umlResult = umlRenderer.render();
-  const funcLabel =
-    ast.functions && ast.functions.length > 1
-      ? ` (функція ${ast.functionName})`
-      : "";
+
+  const scRenderer = new StructureChartRenderer(baseAst);
+  const scResult = scRenderer.render();
+
+  const count = ast.length;
+  const opWord = count === 1 ? "оператор" : count >= 2 && count <= 4 ? "оператори" : "операторів";
+
   return {
     flowchartSvg: fcResult.svg,
     umlSvg: umlResult.svg,
-    status: `✓ Готово: розібрано ${ast.length} операторів${funcLabel}`,
+    structureChartSvg: scResult.svg,
+    status: `✓ ${count} ${opWord}`,
     count: ast.length,
-    functions: ast.functions || [],
-    activeFunction: ast.functionName || "main",
+    functions: baseAst.functions || [],
+    activeFunction: baseAst.functionName || "main",
+    currentAst: ast,
   };
 }
 
@@ -86,15 +121,32 @@ export default function App() {
     }
   });
 
-  const [status, setStatus] = useState("Поле коду порожнє");
+  const [functionCallStyle, setFunctionCallStyle] = useState(() => {
+    try {
+      return localStorage.getItem("functionCallStyle") || "predefined";
+    } catch {
+      return "predefined";
+    }
+  });
+
+  const [status, setStatus] = useState("Введіть код");
   const [flowchartSvg, setFlowchartSvg] = useState("");
   const [umlSvg, setUmlSvg] = useState("");
+  const [structureChartSvg, setStructureChartSvg] = useState("");
   const [activeTab, setActiveTab] = useState("side-by-side");
   const [toast, setToast] = useState({ message: "", isVisible: false });
   const [functions, setFunctions] = useState([]);
   const [selectedFunction, setSelectedFunction] = useState("main");
 
-  // Theme state (checks localStorage and system preference)
+  // Modals state
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [editorDiagramType, setEditorDiagramType] = useState("flowchart");
+
+  // Custom diagram SVG overrides (saved from visual editor)
+  const [customSvgByTab, setCustomSvgByTab] = useState({});
+
+  // Theme state
   const [isDark, setIsDark] = useState(() => {
     try {
       const saved = localStorage.getItem("theme");
@@ -108,8 +160,69 @@ export default function App() {
     }
   });
 
+  // Resizable & Collapsible code editor panel state
+  const [editorWidth, setEditorWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem("editorWidth");
+      return saved ? Number(saved) : 440;
+    } catch {
+      return 440;
+    }
+  });
+
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("isEditorCollapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const isResizingRef = useRef(false);
+
+  const handleResizerMouseDown = (e) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (moveEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = Math.min(Math.max(260, moveEvent.clientX), 750);
+      setEditorWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      setEditorWidth((w) => {
+        try {
+          localStorage.setItem("editorWidth", String(w));
+        } catch {}
+        return w;
+      });
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const handleToggleCollapseEditor = () => {
+    setIsEditorCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("isEditorCollapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const flowchartRef = useRef(null);
   const umlRef = useRef(null);
+  const structureChartRef = useRef(null);
   const debounceTimerRef = useRef(null);
 
   // Apply theme class to <html>
@@ -152,13 +265,17 @@ export default function App() {
       ruleToUse = null,
       colsToUse = null,
       ioToUse = null,
+      callStyleToUse = null,
+      customAstOverride = null,
     ) => {
       const trimmed = (sourceCode || "").trim();
       if (!trimmed) {
         setFlowchartSvg("");
         setUmlSvg("");
-        setStatus("Поле коду порожнє");
+        setStructureChartSvg("");
+        setStatus("Введіть код");
         setFunctions([]);
+        setCurrentAst([]);
         if (!silent) showToast("Введіть або вставте C++ код");
         return;
       }
@@ -169,11 +286,26 @@ export default function App() {
         const arrRule = ruleToUse || arrowRule;
         const cols = colsToUse !== null && colsToUse !== undefined ? colsToUse : columnsMode;
         const ioLabels = ioToUse || ioLabelsMode;
-        const res = compileCode(trimmed, funcToUse, expMode, arrRule, cols, ioLabels);
+        const callStyle = callStyleToUse || functionCallStyle;
+        const customAst = customAstOverride !== null ? customAstOverride : null;
+
+        const res = compileCode(
+          trimmed,
+          funcToUse,
+          expMode,
+          arrRule,
+          cols,
+          ioLabels,
+          callStyle,
+          customAst,
+        );
+
         setFlowchartSvg(res.flowchartSvg);
         setUmlSvg(res.umlSvg);
+        setStructureChartSvg(res.structureChartSvg);
         setStatus(res.status);
         setFunctions(res.functions);
+
         if (res.activeFunction) {
           setSelectedFunction(res.activeFunction);
         }
@@ -201,7 +333,7 @@ export default function App() {
         }
       }
     },
-    [selectedFunction, expressionMode, arrowRule, columnsMode, ioLabelsMode, showToast],
+    [selectedFunction, expressionMode, arrowRule, columnsMode, ioLabelsMode, functionCallStyle, showToast],
   );
 
   const handleToggleExpressionMode = (mode) => {
@@ -210,7 +342,7 @@ export default function App() {
     try {
       localStorage.setItem("expressionMode", mode);
     } catch {}
-    generateDiagrams(code, selectedFunction, false, mode, arrowRule, columnsMode, ioLabelsMode);
+    generateDiagrams(code, selectedFunction, false, mode, arrowRule, columnsMode, ioLabelsMode, functionCallStyle);
     showToast(
       mode === "math"
         ? "Вирази: Математичний вигляд (дроби, степені)"
@@ -224,7 +356,7 @@ export default function App() {
     try {
       localStorage.setItem("arrowRule", rule);
     } catch {}
-    generateDiagrams(code, selectedFunction, false, expressionMode, rule, columnsMode, ioLabelsMode);
+    generateDiagrams(code, selectedFunction, false, expressionMode, rule, columnsMode, ioLabelsMode, functionCallStyle);
     showToast(
       rule === "gost"
         ? "Стрілки: По ГОСТу (ДСТУ 19.701-90)"
@@ -238,7 +370,7 @@ export default function App() {
     try {
       localStorage.setItem("columnsMode", String(mode));
     } catch {}
-    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, mode, ioLabelsMode);
+    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, mode, ioLabelsMode, functionCallStyle);
     showToast(
       mode === "auto"
         ? "Колонки: Авто (2 колонки для великих циклів)"
@@ -254,7 +386,7 @@ export default function App() {
     try {
       localStorage.setItem("ioLabelsMode", mode);
     } catch {}
-    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, columnsMode, mode);
+    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, columnsMode, mode, functionCallStyle);
     showToast(
       mode === "prefix"
         ? "Ввід/Вивід: Зі словами (ввід N / вивід P)"
@@ -262,15 +394,49 @@ export default function App() {
     );
   };
 
+  const handleToggleFunctionCallStyle = (style) => {
+    trackEvent("toggle_function_call_style", { style });
+    setFunctionCallStyle(style);
+    try {
+      localStorage.setItem("functionCallStyle", style);
+    } catch {}
+    generateDiagrams(code, selectedFunction, false, expressionMode, arrowRule, columnsMode, ioLabelsMode, style);
+    showToast(
+      style === "predefined"
+        ? "Виклики функцій: Зумовлений процес за ДСТУ"
+        : "Виклики функцій: Звичайний процес",
+    );
+  };
+
+  const handleResetSettings = () => {
+    setExpressionMode("cpp");
+    setArrowRule("gost");
+    setColumnsMode("auto");
+    setIoLabelsMode("clean");
+    setFunctionCallStyle("predefined");
+    try {
+      localStorage.setItem("expressionMode", "cpp");
+      localStorage.setItem("arrowRule", "gost");
+      localStorage.setItem("columnsMode", "auto");
+      localStorage.setItem("ioLabelsMode", "clean");
+      localStorage.setItem("functionCallStyle", "predefined");
+    } catch {}
+    generateDiagrams(code, selectedFunction, false, "cpp", "gost", "auto", "clean", "predefined");
+    showToast("✓ Налаштування скинуто до початкових");
+  };
+
   const handleSelectFunction = (funcName) => {
     trackEvent("select_function", { function_name: funcName });
     setSelectedFunction(funcName);
-    generateDiagrams(code, funcName, false, expressionMode, arrowRule, columnsMode, ioLabelsMode);
+    generateDiagrams(code, funcName, false, expressionMode, arrowRule, columnsMode, ioLabelsMode, functionCallStyle);
   };
+
+
 
   // Debounced compilation when typing
   const handleCodeChange = (newCode) => {
     setCode(newCode);
+    setCustomSvgByTab({});
     clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       generateDiagrams(newCode, null, true);
@@ -282,108 +448,33 @@ export default function App() {
     setCode("");
     setFlowchartSvg("");
     setUmlSvg("");
+    setStructureChartSvg("");
     setFunctions([]);
+    setCustomSvgByTab({});
     setStatus("Поле коду очищено");
     showToast("Поле коду очищено");
   };
 
-  // Export Helpers
-  const getActiveSvgElement = () => {
-    if (activeTab === "uml") {
-      return umlRef.current?.querySelector("svg") || null;
-    }
-    return flowchartRef.current?.querySelector("svg") || null;
+  // Visual Editor handlers
+  const handleOpenEditor = (type) => {
+    setEditorDiagramType(type || "flowchart");
+    setEditorModalOpen(true);
   };
 
-  const handleExportSvg = () => {
-    if (activeTab === "side-by-side") {
-      const fcEl = flowchartRef.current?.querySelector("svg");
-      const umlEl = umlRef.current?.querySelector("svg");
-      if (!fcEl && !umlEl) {
-        showToast("Спочатку згенеруйте діаграми");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "svg",
-        diagram_type: "both",
-        trigger: "header_menu",
-      });
-      if (fcEl) {
-        exportSvg(fcEl, "flowchart.svg");
-      }
-      if (umlEl) {
-        setTimeout(() => {
-          exportSvg(umlEl, "uml_activity.svg");
-        }, 150);
-      }
-      showToast(
-        "✓ Завантажено обидва файли: flowchart.svg та uml_activity.svg",
-      );
-    } else {
-      const svgEl = getActiveSvgElement();
-      if (!svgEl) {
-        showToast("Спочатку згенеруйте діаграму");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "svg",
-        diagram_type: activeTab,
-        trigger: "header_menu",
-      });
-      const filename =
-        activeTab === "uml" ? "uml_activity.svg" : "flowchart.svg";
-      exportSvg(svgEl, filename);
-      showToast(`✓ Завантажено ${filename}`);
-    }
+  const handleSaveCustomSvg = (newSvg, type) => {
+    setCustomSvgByTab((prev) => ({
+      ...prev,
+      [type]: newSvg,
+    }));
+    showToast("✓ Зміни на діаграмі успішно збережено!");
   };
 
-  const handleExportPng = async () => {
-    if (activeTab === "side-by-side") {
-      const fcEl = flowchartRef.current?.querySelector("svg");
-      const umlEl = umlRef.current?.querySelector("svg");
-      if (!fcEl && !umlEl) {
-        showToast("Спочатку згенеруйте діаграми");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "png",
-        diagram_type: "both",
-        trigger: "header_menu",
-      });
-      try {
-        if (fcEl) {
-          await exportPng(fcEl, "flowchart.png", 2.5);
-        }
-        if (umlEl) {
-          await new Promise((r) => setTimeout(r, 150));
-          await exportPng(umlEl, "uml_activity.png", 2.5);
-        }
-        showToast(
-          "✓ Завантажено обидва файли: flowchart.png та uml_activity.png",
-        );
-      } catch {
-        showToast("Не вдалося експортувати PNG");
-      }
-    } else {
-      const svgEl = getActiveSvgElement();
-      if (!svgEl) {
-        showToast("Спочатку згенеруйте діаграму");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "png",
-        diagram_type: activeTab,
-        trigger: "header_menu",
-      });
-      const filename =
-        activeTab === "uml" ? "uml_activity.png" : "flowchart.png";
-      try {
-        await exportPng(svgEl, filename, 2.5);
-        showToast(`✓ Завантажено ${filename}`);
-      } catch {
-        showToast("Не вдалося експортувати PNG");
-      }
-    }
+  const handleResetCustomSvg = (type) => {
+    setCustomSvgByTab((prev) => ({
+      ...prev,
+      [type]: null,
+    }));
+    showToast("✓ Діаграму відновлено з C++ коду");
   };
 
   const handleDownloadCardSvg = (svgEl, name) => {
@@ -416,14 +507,81 @@ export default function App() {
     <div className="app-root">
       <Header
         onGenerate={() => generateDiagrams(code, null, false)}
-        onExportSvg={handleExportSvg}
-        onExportPng={handleExportPng}
         isDark={isDark}
         onToggleTheme={toggleTheme}
-        activeTab={activeTab}
         functions={functions}
         selectedFunction={selectedFunction}
         onSelectFunction={handleSelectFunction}
+        expressionMode={expressionMode}
+        onOpenSettings={() => setSettingsModalOpen(true)}
+      />
+
+      <main className="app-container">
+        {!isEditorCollapsed && (
+          <div
+            className="editor-resizable-wrapper"
+            style={{ width: `${editorWidth}px` }}
+          >
+            <CodeEditor
+              code={code}
+              onChange={handleCodeChange}
+              onClear={handleClearCode}
+              onGenerate={() => generateDiagrams(code, false)}
+              status={status}
+              onCollapse={handleToggleCollapseEditor}
+            />
+          </div>
+        )}
+
+        <div
+          className={`app-pane-resizer ${isEditorCollapsed ? "collapsed" : ""}`}
+          onMouseDown={!isEditorCollapsed ? handleResizerMouseDown : undefined}
+          title={isEditorCollapsed ? "Розгорнути панель коду" : "Потягніть для зміни ширини або клікніть для згортання"}
+        >
+          <button
+            type="button"
+            className="pane-collapse-btn"
+            onClick={handleToggleCollapseEditor}
+            title={isEditorCollapsed ? "Розгорнути панель коду" : "Згорнути панель коду"}
+            aria-label={isEditorCollapsed ? "Розгорнути панель коду" : "Згорнути панель коду"}
+          >
+            {isEditorCollapsed ? (
+              <ChevronRight size={13} strokeWidth={2.5} />
+            ) : (
+              <ChevronLeft size={13} strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
+
+        <ViewerPanel
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          flowchartSvg={customSvgByTab.flowchart || flowchartSvg}
+          umlSvg={customSvgByTab.uml || umlSvg}
+          structureChartSvg={customSvgByTab["structure-chart"] || structureChartSvg}
+          flowchartRef={flowchartRef}
+          umlRef={umlRef}
+          structureChartRef={structureChartRef}
+          onDownloadFcSvg={(el) => handleDownloadCardSvg(el, "flowchart")}
+          onDownloadFcPng={(el) => handleDownloadCardPng(el, "flowchart")}
+          onDownloadUmlSvg={(el) => handleDownloadCardSvg(el, "uml_activity")}
+          onDownloadUmlPng={(el) => handleDownloadCardPng(el, "uml_activity")}
+          onDownloadScSvg={(el) => handleDownloadCardSvg(el, "structure_chart")}
+          onDownloadScPng={(el) => handleDownloadCardPng(el, "structure_chart")}
+          onEditDiagram={handleOpenEditor}
+          isCustomized={{
+            flowchart: Boolean(customSvgByTab.flowchart),
+            uml: Boolean(customSvgByTab.uml),
+            "structure-chart": Boolean(customSvgByTab["structure-chart"]),
+          }}
+          onToast={showToast}
+        />
+      </main>
+
+      {/* Settings Modal (consolidated options) */}
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
         expressionMode={expressionMode}
         onToggleExpressionMode={handleToggleExpressionMode}
         arrowRule={arrowRule}
@@ -432,30 +590,38 @@ export default function App() {
         onToggleColumnsMode={handleToggleColumnsMode}
         ioLabelsMode={ioLabelsMode}
         onToggleIoLabelsMode={handleToggleIoLabelsMode}
+        functionCallStyle={functionCallStyle}
+        onToggleFunctionCallStyle={handleToggleFunctionCallStyle}
+        onResetDefaults={handleResetSettings}
       />
 
-      <main className="app-container">
-        <CodeEditor
-          code={code}
-          onChange={handleCodeChange}
-          onClear={handleClearCode}
-          onGenerate={() => generateDiagrams(code, false)}
-          status={status}
+      {/* Diagram Interactive Visual Editor Modal */}
+      {editorModalOpen && (
+        <DiagramEditorModal
+          key={`${editorDiagramType}_${selectedFunction}`}
+          isOpen={editorModalOpen}
+          onClose={() => setEditorModalOpen(false)}
+          diagramType={editorDiagramType}
+          diagramTitle={
+            editorDiagramType === "uml"
+              ? "UML-activity діаграма"
+              : editorDiagramType === "structure-chart"
+                ? "Структурна схема програми"
+                : "Блок-схема алгоритму"
+          }
+          svgContent={
+            editorDiagramType === "uml"
+              ? (customSvgByTab.uml || umlSvg)
+              : editorDiagramType === "structure-chart"
+                ? (customSvgByTab["structure-chart"] || structureChartSvg)
+                : (customSvgByTab.flowchart || flowchartSvg)
+          }
+          onSave={handleSaveCustomSvg}
+          onResetToCode={() => handleResetCustomSvg(editorDiagramType)}
+          isCustomized={Boolean(customSvgByTab[editorDiagramType])}
+          isDark={isDark}
         />
-
-        <ViewerPanel
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          flowchartSvg={flowchartSvg}
-          umlSvg={umlSvg}
-          flowchartRef={flowchartRef}
-          umlRef={umlRef}
-          onDownloadFcSvg={(el) => handleDownloadCardSvg(el, "flowchart")}
-          onDownloadFcPng={(el) => handleDownloadCardPng(el, "flowchart")}
-          onDownloadUmlSvg={(el) => handleDownloadCardSvg(el, "uml_activity")}
-          onDownloadUmlPng={(el) => handleDownloadCardPng(el, "uml_activity")}
-        />
-      </main>
+      )}
 
       <Toast message={toast.message} isVisible={toast.isVisible} />
     </div>

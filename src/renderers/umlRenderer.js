@@ -162,13 +162,22 @@ class UmlRenderer {
   layoutPrimitive(node, type) {
     if (type === "start") {
       const r = 11;
+      const isSubroutine = Boolean(this.ast.functionName && this.ast.functionName !== "main");
+      const sig = isSubroutine ? (this.ast.functionSignature || this.ast.functionName) : null;
+      const labelW = sig ? sig.length * 8.5 + 10 : 0;
+      const totalW = labelW + r * 2;
       return {
-        w: r * 2,
+        w: totalW,
         h: r * 2,
-        cx: r,
+        cx: labelW + r,
         render: (x, y) => {
-          this.bounds.addCircle(x + r, y + r, r);
-          this.elements.push(SVG.umlInitialNode(x + r, y + r, r));
+          const circleCx = x + labelW + r;
+          const circleCy = y + r;
+          this.bounds.addCircle(circleCx, circleCy, r);
+          if (sig) {
+            this.bounds.addText(circleCx - r - 8, circleCy, sig, { anchor: 'end', size: 13 });
+          }
+          this.elements.push(SVG.umlInitialNode(circleCx, circleCy, r, sig));
         },
       };
     }
@@ -187,6 +196,11 @@ class UmlRenderer {
 
     const isIO = type === "input" || type === "output";
     const dim = this.calcActionDimensions(node, isIO);
+    const isPredefined = Boolean(
+      node &&
+      (node.isPredefined || node.isFunctionCall) &&
+      this.options.functionCallStyle !== "process"
+    );
     return {
       w: dim.w,
       h: dim.h,
@@ -207,14 +221,20 @@ class UmlRenderer {
               dim.frac.denText,
               {
                 isUml: true,
+                isCallAction: isPredefined,
                 prefix: dim.frac.prefix,
                 suffix: dim.frac.suffix,
+                nodeId: node?.id
               }
             )
           );
         } else {
           this.elements.push(
-            SVG.umlAction(cx, cy, dim.w, dim.h, dim.lines, { isIO })
+            SVG.umlAction(cx, cy, dim.w, dim.h, dim.lines, {
+              isIO,
+              isCallAction: isPredefined,
+              nodeId: node?.id
+            })
           );
         }
       },
@@ -930,14 +950,7 @@ class UmlRenderer {
       return true;
     });
 
-    const isNonMain = this.ast.functionName && this.ast.functionName !== "main";
-    let startNode;
-    if (isNonMain) {
-      const sig = this.ast.functionSignature || this.ast.functionName;
-      startNode = this.layoutPrimitive({ type: "process", text: sig }, "process");
-    } else {
-      startNode = this.layoutPrimitive(null, "start");
-    }
+    const startNode = this.layoutPrimitive(null, "start");
     const endNode = this.layoutPrimitive(null, "end");
 
     const columns = this.splitAstIntoColumns(filteredAst);
