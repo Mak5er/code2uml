@@ -18,8 +18,6 @@ import {
   Square,
   FileText,
   CornerDownRight,
-  ArrowDownFromLine,
-  ArrowUpFromLine,
   Hand,
   BoxSelect,
   MousePointer2,
@@ -594,29 +592,7 @@ export default function DiagramEditorModal({
     }
   }, [graph, selectedNodeIds, selectedEdgeId, pushHistory]);
 
-  // Shift Section / Insert Space (move selected and all nodes below)
-  const handleShiftBelow = useCallback((deltaY = 60) => {
-    if (!graph.nodes.length) return;
-
-    let cutoffY = -Infinity;
-    if (selectedNodeIds.length > 0) {
-      const selected = graph.nodes.filter((n) => selectedNodeIds.includes(n.id));
-      cutoffY = Math.max(...selected.map((n) => n.cy + n.h / 2));
-    }
-
-    const nextNodes = graph.nodes.map((n) => {
-      if (selectedNodeIds.length === 0 || n.cy > cutoffY - 10) {
-        return { ...n, cy: snapCoord(n.cy + deltaY) };
-      }
-      return n;
-    });
-
-    const nextEdges = graph.edges.map((e) => rerouteEdge(e, nextNodes));
-    const nextGraph = { ...graph, nodes: nextNodes, edges: nextEdges };
-    pushHistory(nextGraph);
-  }, [graph, selectedNodeIds, snapCoord, pushHistory]);
-
-  // Keyboard Shortcuts: Delete, Ctrl+Z, Ctrl+Y, Ctrl+D, Alt+Down, Alt+Up
+  // Keyboard Shortcuts: Delete, Ctrl+Z, Ctrl+Y, Ctrl+D
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
@@ -644,12 +620,6 @@ export default function DiagramEditorModal({
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         handleDuplicateSelected();
-      } else if (e.altKey && e.key === "ArrowDown") {
-        e.preventDefault();
-        handleShiftBelow(60);
-      } else if (e.altKey && e.key === "ArrowUp") {
-        e.preventDefault();
-        handleShiftBelow(-60);
       } else if (e.key === "Escape") {
         setSelectedNodeIds([]);
         setSelectedEdgeId(null);
@@ -660,7 +630,7 @@ export default function DiagramEditorModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, handleUndo, handleRedo, handleDeleteSelected, handleDuplicateSelected, handleShiftBelow]);
+  }, [isOpen, handleUndo, handleRedo, handleDeleteSelected, handleDuplicateSelected]);
 
   // Colors based on editor theme
   const colors = {
@@ -1024,7 +994,7 @@ export default function DiagramEditorModal({
               targetNodeId: tgtNode.id,
               targetPort: connectingState.targetPort,
               points: calculateOrthogonalRoute(p1, p1.dir, p2, p2.dir),
-              hasArrow: true,
+              hasArrow: diagramType === "uml",
               marker: diagramType === "uml" ? "arrow-uml" : "arrow-flow",
               isOrthogonal: true,
               label: "",
@@ -1329,21 +1299,6 @@ export default function DiagramEditorModal({
               title="Режим «Рамка»: обвести групу блоків прямокутником (або затисніть Shift+Drag)"
             >
               <BoxSelect size={15} />
-            </button>
-            <div className="drawio-sep" />
-            <button
-              className="drawio-tool-btn"
-              onClick={() => handleShiftBelow(60)}
-              title="Розсунути місце вниз: посунути всі нижні блоки на +60px (Alt+↓)"
-            >
-              <ArrowDownFromLine size={15} />
-            </button>
-            <button
-              className="drawio-tool-btn"
-              onClick={() => handleShiftBelow(-60)}
-              title="Зсунути блоки вгору: прибрати порожнє місце на -60px (Alt+↑)"
-            >
-              <ArrowUpFromLine size={15} />
             </button>
             <div className="drawio-sep" />
             <button
@@ -2067,20 +2022,6 @@ export default function DiagramEditorModal({
                 <div className="prop-section-actions">
                   <button
                     className="btn btn-secondary btn-sm w-full mb-2"
-                    onClick={() => handleShiftBelow(60)}
-                    title="Розсунути місце вниз: посунути всі нижні блоки на +60px"
-                  >
-                    <ArrowDownFromLine size={13} /> Розсунути місце вниз (+60px)
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm w-full mb-2"
-                    onClick={() => handleShiftBelow(-60)}
-                    title="Зсунути блоки вгору: прибрати порожнє місце на -60px"
-                  >
-                    <ArrowUpFromLine size={13} /> Зсунути блоки вгору (-60px)
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm w-full mb-2"
                     onClick={handleDuplicateSelected}
                   >
                     <Copy size={13} /> Дублювати всі {selectedNodeIds.length} блоки (Ctrl+D)
@@ -2302,22 +2243,6 @@ export default function DiagramEditorModal({
                         <span className="shortcut-label">Видалити</span>
                         <div className="shortcut-badges">
                           <kbd>Delete</kbd>
-                        </div>
-                      </div>
-                      <div className="guide-shortcut-row">
-                        <span className="shortcut-label">Розсунути вниз</span>
-                        <div className="shortcut-badges">
-                          <kbd>Alt</kbd>
-                          <span className="badge-plus">+</span>
-                          <kbd>↓</kbd>
-                        </div>
-                      </div>
-                      <div className="guide-shortcut-row">
-                        <span className="shortcut-label">Зсунути вгору</span>
-                        <div className="shortcut-badges">
-                          <kbd>Alt</kbd>
-                          <span className="badge-plus">+</span>
-                          <kbd>↑</kbd>
                         </div>
                       </div>
                       <div className="guide-shortcut-row">
