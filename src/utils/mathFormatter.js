@@ -80,47 +80,57 @@ function replaceBalancedCalls(str, fnNames, replacer) {
  * pow(x + 1, 2) -> (x + 1)²
  */
 function replacePowCalls(s) {
-    let pattern = /\b(?:std::)?pow\s*\(/g;
-    let match;
-    while ((match = pattern.exec(s)) !== null) {
-        const startIdx = match.index;
-        const openParenIdx = startIdx + match[0].length - 1;
-        let depth = 1;
-        let commaIdx = -1;
-        let closeParenIdx = -1;
-        for (let i = openParenIdx + 1; i < s.length; i++) {
-            if (s[i] === '(') depth++;
-            else if (s[i] === ')') {
-                depth--;
-                if (depth === 0) {
-                    closeParenIdx = i;
-                    break;
+    let changed = true;
+    let iterations = 0;
+    while (changed && iterations < 10) {
+        changed = false;
+        iterations++;
+        let pattern = /\b(?:std::)?pow\s*\(/g;
+        let match;
+        while ((match = pattern.exec(s)) !== null) {
+            const startIdx = match.index;
+            const openParenIdx = startIdx + match[0].length - 1;
+            let depth = 1;
+            let commaIdx = -1;
+            let closeParenIdx = -1;
+            for (let i = openParenIdx + 1; i < s.length; i++) {
+                if (s[i] === '(') depth++;
+                else if (s[i] === ')') {
+                    depth--;
+                    if (depth === 0) {
+                        closeParenIdx = i;
+                        break;
+                    }
+                } else if (s[i] === ',' && depth === 1 && commaIdx === -1) {
+                    commaIdx = i;
                 }
-            } else if (s[i] === ',' && depth === 1 && commaIdx === -1) {
-                commaIdx = i;
             }
-        }
-        if (closeParenIdx !== -1 && commaIdx !== -1) {
-            let base = s.slice(openParenIdx + 1, commaIdx).trim();
-            let exp = s.slice(commaIdx + 1, closeParenIdx).trim();
-            const supExp = toSuperscript(exp);
+            if (closeParenIdx !== -1 && commaIdx !== -1) {
+                let base = s.slice(openParenIdx + 1, commaIdx).trim();
+                let exp = s.slice(commaIdx + 1, closeParenIdx).trim();
+                if (/\b(?:std::)?pow\s*\(/.test(base)) {
+                    continue;
+                }
+                const supExp = toSuperscript(exp);
 
-            // Check if base is a trig call: sin(x), cos(a), tan(x), etc.
-            const trigMatch = base.match(/^((?:std::)?(?:sin|cos|tg|tan|ctg|arcsin|arccos|arctg))\s*\((.+)\)$/);
-            let replacement = '';
-            if (trigMatch) {
-                let trigName = trigMatch[1].replace('std::', '');
-                if (trigName === 'tan') trigName = 'tg';
-                replacement = `${trigName}${supExp}(${trigMatch[2]})`;
+                // Check if base is a trig call: sin(x), cos(a), tan(x), etc.
+                const trigMatch = base.match(/^((?:std::)?(?:sin|cos|tg|tan|ctg|arcsin|arccos|arctg))\s*\((.+)\)$/);
+                let replacement = '';
+                if (trigMatch) {
+                    let trigName = trigMatch[1].replace('std::', '');
+                    if (trigName === 'tan') trigName = 'tg';
+                    replacement = `${trigName}${supExp}(${trigMatch[2]})`;
+                } else {
+                    const needsParens = /[+\-*/]/.test(base) && !(base.startsWith('(') && base.endsWith(')'));
+                    const baseFmt = needsParens ? `(${base})` : base;
+                    replacement = `${baseFmt}${supExp}`;
+                }
+                s = s.slice(0, startIdx) + replacement + s.slice(closeParenIdx + 1);
+                changed = true;
+                break;
             } else {
-                const needsParens = /[+\-*/]/.test(base) && !(base.startsWith('(') && base.endsWith(')'));
-                const baseFmt = needsParens ? `(${base})` : base;
-                replacement = `${baseFmt}${supExp}`;
+                break;
             }
-            s = s.slice(0, startIdx) + replacement + s.slice(closeParenIdx + 1);
-            pattern.lastIndex = startIdx + replacement.length;
-        } else {
-            break;
         }
     }
     return s;

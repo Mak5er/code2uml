@@ -299,6 +299,68 @@ class CppParser {
             }
         }
 
+        // Collect all declared/defined function names
+        const allFuncNames = new Set(this.functions.map(f => f.name));
+
+        // Tag function calls and assign unique node IDs for editing
+        const tagCallsAndAssignIds = (stmtsList, callerName, prefix = 'node') => {
+            if (!Array.isArray(stmtsList)) return;
+            stmtsList.forEach((s, idx) => {
+                if (!s) return;
+                const nodeId = `${prefix}_${callerName}_${idx}`;
+                if (!s.id) s.id = nodeId;
+                const textToCheck = `${s.text || ''} ${s.raw || ''} ${s.expr || ''} ${s.value || ''}`;
+                for (const fn of allFuncNames) {
+                    const callRegex = new RegExp(`\\b${fn}\\s*\\(`, 'i');
+                    if (callRegex.test(textToCheck)) {
+                        s.isFunctionCall = true;
+                        s.isPredefined = true;
+                        s.calledFunction = fn;
+                        if (fn === callerName) {
+                            s.isRecursive = true;
+                        }
+                    }
+                }
+                if (s.thenBranch) tagCallsAndAssignIds(s.thenBranch, callerName, `${nodeId}_then`);
+                if (s.elseBranch) tagCallsAndAssignIds(s.elseBranch, callerName, `${nodeId}_else`);
+                if (s.body) tagCallsAndAssignIds(s.body, callerName, `${nodeId}_body`);
+            });
+        };
+
+        this.functions.forEach(f => {
+            if (f.body) {
+                tagCallsAndAssignIds(f.body, f.name);
+            }
+        });
+        if (globalStmts.length > 0) {
+            tagCallsAndAssignIds(globalStmts, 'global');
+        }
+
+        // Build call graph for Structure Chart (Структурна схема)
+        const callGraph = [];
+        this.functions.forEach(f => {
+            const calledSet = new Set();
+            const collectCalls = (stmtsList) => {
+                if (!Array.isArray(stmtsList)) return;
+                stmtsList.forEach(s => {
+                    if (s && s.isFunctionCall && s.calledFunction) {
+                        calledSet.add(s.calledFunction);
+                    }
+                    if (s && s.thenBranch) collectCalls(s.thenBranch);
+                    if (s && s.elseBranch) collectCalls(s.elseBranch);
+                    if (s && s.body) collectCalls(s.body);
+                });
+            };
+            if (f.body) collectCalls(f.body);
+            calledSet.forEach(target => {
+                callGraph.push({
+                    from: f.name,
+                    to: target,
+                    isRecursive: f.name === target
+                });
+            });
+        });
+
         let activeFunc = null;
         if (this.functions.length > 0) {
             if (this.options.targetFunction) {
@@ -318,6 +380,8 @@ class CppParser {
         resultStmts.functionName = activeFunc ? activeFunc.name : 'main';
         resultStmts.functionSignature = activeFunc ? activeFunc.signature : 'main()';
         resultStmts.isMain = activeFunc ? activeFunc.isMain : true;
+        resultStmts.callGraph = callGraph;
+        resultStmts.allFunctions = this.functions;
 
         return resultStmts;
     }
@@ -1179,11 +1243,27 @@ class CppParser {
             activeStmts.push(curr);
         }
 
+        // 2c. Normalize if-returns without else (canonical in recursion: if (cond) return A; return B;)
+        const afterEarlyReturns = [];
+        for (let i = 0; i < activeStmts.length; i++) {
+            const curr = activeStmts[i];
+            if (curr && curr.type === 'if' && (!curr.elseBranch || curr.elseBranch.length === 0)) {
+                const thenLast = curr.thenBranch && curr.thenBranch[curr.thenBranch.length - 1];
+                if (thenLast && thenLast.type === 'return' && i + 1 < activeStmts.length) {
+                    const remaining = activeStmts.slice(i + 1);
+                    curr.elseBranch = this.cleanStatements(remaining);
+                    afterEarlyReturns.push(curr);
+                    break;
+                }
+            }
+            afterEarlyReturns.push(curr);
+        }
+
         // 3. Merge consecutive input statements into a single input node ("ввід a, b, c, d")
         const merged = [];
         let i = 0;
-        while (i < activeStmts.length) {
-            const curr = activeStmts[i];
+        while (i < afterEarlyReturns.length) {
+            const curr = afterEarlyReturns[i];
             if (curr.type === 'input') {
                 const combinedVars = [];
                 if (curr.variables && curr.variables.length > 0) {
@@ -1193,8 +1273,8 @@ class CppParser {
                 }
 
                 let j = i + 1;
-                while (j < activeStmts.length && activeStmts[j].type === 'input') {
-                    const nextInput = activeStmts[j];
+                while (j < afterEarlyReturns.length && afterEarlyReturns[j].type === 'input') {
+                    const nextInput = afterEarlyReturns[j];
                     if (nextInput.variables && nextInput.variables.length > 0) {
                         combinedVars.push(...nextInput.variables);
                     } else if (nextInput.text) {

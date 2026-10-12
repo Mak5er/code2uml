@@ -7,12 +7,18 @@ export default function ViewerPanel({
   onTabChange,
   flowchartSvg,
   umlSvg,
+  structureChartSvg,
   flowchartRef,
   umlRef,
+  structureChartRef,
   onDownloadFcSvg,
   onDownloadFcPng,
   onDownloadUmlSvg,
   onDownloadUmlPng,
+  onDownloadScSvg,
+  onDownloadScPng,
+  onEditDiagram,
+  isCustomized = false,
 }) {
   const workspaceRef = useRef(null);
   const [zoom, setZoom] = useState(1.0);
@@ -130,15 +136,21 @@ export default function ViewerPanel({
     };
   }, []);
 
+  const isAll = activeTab === "all" || activeTab === "side-by-side";
+  const isFcCustomized = typeof isCustomized === "object" ? Boolean(isCustomized.flowchart) : Boolean(isCustomized);
+  const isUmlCustomized = typeof isCustomized === "object" ? Boolean(isCustomized.uml) : Boolean(isCustomized);
+  const isScCustomized = typeof isCustomized === "object" ? Boolean(isCustomized["structure-chart"]) : false;
+
   return (
     <section className="panel-viewer">
       <div className="viewer-header">
         <div className="tabs-group">
           <button
-            className={`tab-btn ${activeTab === "side-by-side" ? "active" : ""}`}
-            onClick={() => onTabChange("side-by-side")}
+            className={`tab-btn ${isAll ? "active" : ""}`}
+            onClick={() => onTabChange("all")}
+            title="Показати блок-схему та UML діаграму поруч"
           >
-            📑 Обидві поруч
+            Всі
           </button>
           <button
             className={`tab-btn ${activeTab === "flowchart" ? "active" : ""}`}
@@ -151,6 +163,13 @@ export default function ViewerPanel({
             onClick={() => onTabChange("uml")}
           >
             ⚡ UML Activity
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "structure-chart" ? "active" : ""}`}
+            onClick={() => onTabChange("structure-chart")}
+            title="Структурна схема взаємозв'язку функцій та рекурсії (ДСТУ / Лаб. 5)"
+          >
+            🏗️ Структурна схема
           </button>
         </div>
 
@@ -175,27 +194,45 @@ export default function ViewerPanel({
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           }}
         >
-          {(activeTab === "side-by-side" || activeTab === "flowchart") && (
+          {(isAll || activeTab === "flowchart") && (
             <DiagramCard
               id="cardFlowchart"
               title="Блок-схема алгоритму"
+              badge={isFcCustomized ? "Змінено вручну" : undefined}
               svgContent={flowchartSvg}
               emptyMessage="Введіть C++ код для генерації блок-схеми"
               onDownloadSvg={onDownloadFcSvg}
               onDownloadPng={onDownloadFcPng}
               innerRef={flowchartRef}
+              onEdit={() => onEditDiagram && onEditDiagram("flowchart")}
             />
           )}
 
-          {(activeTab === "side-by-side" || activeTab === "uml") && (
+          {(isAll || activeTab === "uml") && (
             <DiagramCard
               id="cardUml"
               title="UML-activity діаграма"
+              badge={isUmlCustomized ? "Змінено вручну" : undefined}
               svgContent={umlSvg}
               emptyMessage="Введіть C++ код для генерації UML діаграми"
               onDownloadSvg={onDownloadUmlSvg}
               onDownloadPng={onDownloadUmlPng}
               innerRef={umlRef}
+              onEdit={() => onEditDiagram && onEditDiagram("uml")}
+            />
+          )}
+
+          {activeTab === "structure-chart" && (
+            <DiagramCard
+              id="cardStructureChart"
+              title="Структурна схема програми"
+              badge={isScCustomized ? "Змінено вручну" : undefined}
+              svgContent={structureChartSvg}
+              emptyMessage="Введіть C++ код з 2+ функціями або рекурсією для генерації структурної схеми (Лаб. №5)"
+              onDownloadSvg={onDownloadScSvg}
+              onDownloadPng={onDownloadScPng}
+              innerRef={structureChartRef}
+              onEdit={structureChartSvg ? () => onEditDiagram && onEditDiagram("structure-chart") : undefined}
             />
           )}
         </div>

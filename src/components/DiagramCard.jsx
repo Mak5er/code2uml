@@ -9,7 +9,8 @@ export default function DiagramCard({
     onDownloadSvg,
     onDownloadPng,
     innerRef,
-    extraActions
+    extraActions,
+    onEdit
 }) {
     const localContentRef = useRef(null);
     const contentRef = innerRef || localContentRef;
@@ -37,6 +38,15 @@ export default function DiagramCard({
                 </div>
                 <div className="card-actions">
                     {extraActions}
+                    {onEdit && (
+                        <button
+                            className="btn-card-action btn-card-edit"
+                            onClick={onEdit}
+                            title={`Редагувати блоки схеми (${title})`}
+                        >
+                            ✏️ Редагувати
+                        </button>
+                    )}
                     <button
                         className="btn-card-action"
                         onClick={handleSvgDownload}

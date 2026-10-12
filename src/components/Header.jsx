@@ -7,6 +7,7 @@ import {
   Moon,
   Sun,
   Heart,
+  Settings,
 } from "lucide-react";
 import { LINKS } from "../constants/links.js";
 import { trackEvent } from "../utils/analytics.js";
@@ -22,13 +23,7 @@ export default function Header({
   selectedFunction = "main",
   onSelectFunction,
   expressionMode = "cpp",
-  onToggleExpressionMode,
-  arrowRule = "gost",
-  onToggleArrowRule,
-  columnsMode = "auto",
-  onToggleColumnsMode,
-  ioLabelsMode = "clean",
-  onToggleIoLabelsMode,
+  onOpenSettings,
 }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -90,121 +85,17 @@ export default function Header({
           </div>
         )}
 
-        <div className="divider-v" />
-
-        {/* Expression mode switcher: C++ vs Mathematical format */}
-        <div
-          className="expression-mode-switcher"
-          role="group"
-          aria-label="Формат виразів"
+        <button
+          className="btn btn-outline btn-settings-trigger"
+          onClick={onOpenSettings}
+          title="Налаштування генерації діаграм (вирази, ГОСТ, колонки, ввід/вивід, символи викликів)"
         >
-          <button
-            type="button"
-            className={`mode-toggle-btn ${expressionMode === "cpp" ? "active" : ""}`}
-            onClick={() =>
-              onToggleExpressionMode && onToggleExpressionMode("cpp")
-            }
-            title="Формат виразів як у C++ коді (наприклад pow(x, 2), /)"
-          >
-            C++
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${expressionMode === "math" ? "active" : ""}`}
-            onClick={() =>
-              onToggleExpressionMode && onToggleExpressionMode("math")
-            }
-            title="Математичний формат формул (дроби з горизонтальною рискою, степені x², корені √)"
-          >
-            <span className="math-sigma-symbol">∑</span> Математика
-          </button>
-        </div>
-
-        <div className="divider-v" />
-
-        {/* Arrow rule switcher: Everywhere vs GOST standard */}
-        <div
-          className="expression-mode-switcher arrow-rule-switcher"
-          role="group"
-          aria-label="Стрілочки блок-схеми"
-        >
-          <button
-            type="button"
-            className={`mode-toggle-btn ${arrowRule === "all" ? "active" : ""}`}
-            onClick={() => onToggleArrowRule && onToggleArrowRule("all")}
-            title="Стрілочки на всіх переходах між блоками блок-схеми"
-          >
-            Всюди
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${arrowRule === "gost" ? "active" : ""}`}
-            onClick={() => onToggleArrowRule && onToggleArrowRule("gost")}
-            title="За стандартом ГОСТ / ДСТУ 19.701-90 (стрілки тільки для ліній знизу вгору та злиття)"
-          >
-            ГОСТ
-          </button>
-        </div>
-
-        <div className="divider-v" />
-
-        {/* Columns switcher: Auto vs 1 column vs 2 columns */}
-        <div
-          className="expression-mode-switcher columns-switcher"
-          role="group"
-          aria-label="Кількість колонок"
-        >
-          <button
-            type="button"
-            className={`mode-toggle-btn ${columnsMode === "auto" ? "active" : ""}`}
-            onClick={() => onToggleColumnsMode && onToggleColumnsMode("auto")}
-            title="Автоматично: 2 колонки зі з'єднувачем (1) для великих циклів (4.1)"
-          >
-            Авто-кол
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${columnsMode === 1 ? "active" : ""}`}
-            onClick={() => onToggleColumnsMode && onToggleColumnsMode(1)}
-            title="1 довга колонка"
-          >
-            1 кол
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${columnsMode === 2 ? "active" : ""}`}
-            onClick={() => onToggleColumnsMode && onToggleColumnsMode(2)}
-            title="2 колонки зі з'єднувачем (1)"
-          >
-            2 кол (1)
-          </button>
-        </div>
-
-        <div className="divider-v" />
-
-        {/* IO Labels switcher: Clean variables (GOST) vs Verbal prefix (ввід / вивід) */}
-        <div
-          className="expression-mode-switcher io-labels-switcher"
-          role="group"
-          aria-label="Підписи вводу/виводу"
-        >
-          <button
-            type="button"
-            className={`mode-toggle-btn ${ioLabelsMode === "clean" ? "active" : ""}`}
-            onClick={() => onToggleIoLabelsMode && onToggleIoLabelsMode("clean")}
-            title="Тільки змінні за ГОСТ (k, N / S)"
-          >
-            ГОСТ: N, P
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${ioLabelsMode === "prefix" ? "active" : ""}`}
-            onClick={() => onToggleIoLabelsMode && onToggleIoLabelsMode("prefix")}
-            title="Зі словами (ввід N / вивід P)"
-          >
-            ввід N, вивід P
-          </button>
-        </div>
+          <Settings size={15} strokeWidth={2} />
+          <span>Налаштування</span>
+          {expressionMode === "math" && (
+            <span className="settings-active-badge" title="Математичний режим активний">∑</span>
+          )}
+        </button>
 
         <div className="divider-v" />
 
