@@ -18,6 +18,8 @@ import {
   Square,
   FileText,
   CornerDownRight,
+  ArrowDownFromLine,
+  ArrowUpFromLine,
 } from "lucide-react";
 import {
   extractGraphFromSvg,
@@ -27,12 +29,83 @@ import {
   calculateOrthogonalRoute,
 } from "../utils/diagramGraph.js";
 
+export function ShapePaletteIcon({ type }) {
+  const commonProps = {
+    width: "24",
+    height: "16",
+    viewBox: "0 0 24 16",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+  };
+
+  switch (type) {
+    case "process":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2" width="20" height="12" rx="1.5" />
+        </svg>
+      );
+    case "predefined":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2" width="20" height="12" rx="1.5" />
+          <line x1="6.5" y1="2" x2="6.5" y2="14" strokeWidth="1.5" />
+          <line x1="17.5" y1="2" x2="17.5" y2="14" strokeWidth="1.5" />
+        </svg>
+      );
+    case "rhombus":
+      return (
+        <svg {...commonProps}>
+          <polygon points="12,1.5 22,8 12,14.5 2,8" strokeLinejoin="round" />
+        </svg>
+      );
+    case "input":
+      return (
+        <svg {...commonProps}>
+          <polygon points="5.5,2 22,2 18.5,14 2,14" strokeLinejoin="round" />
+        </svg>
+      );
+    case "output":
+      return (
+        <svg {...commonProps}>
+          <path d="M 2 2 L 22 2 L 22 10.5 C 17 13.5, 7 8.5, 2 11.5 Z" strokeLinejoin="round" />
+        </svg>
+      );
+    case "start":
+    case "end":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2.5" width="20" height="11" rx="5.5" />
+        </svg>
+      );
+    case "uml-action":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2" width="20" height="12" rx="5" />
+        </svg>
+      );
+    case "structure-chart-node":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2" width="20" height="12" rx="2" />
+          <line x1="2" y1="5.5" x2="22" y2="5.5" strokeWidth="1.4" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2" width="20" height="12" rx="1.5" />
+        </svg>
+      );
+  }
+}
+
 const SHAPES_PALETTE = [
   {
     type: "process",
     title: "Процес (Дія)",
     desc: "Стандартна операція / присвоєння",
-    icon: "▭",
     defaultText: "x = a + b",
     w: 120,
     h: 42,
@@ -41,7 +114,6 @@ const SHAPES_PALETTE = [
     type: "predefined",
     title: "Зумовлений процес",
     desc: "Виклик функції за ДСТУ 19.701-90",
-    icon: "⚏",
     defaultText: "f(n)",
     w: 130,
     h: 42,
@@ -51,7 +123,6 @@ const SHAPES_PALETTE = [
     type: "rhombus",
     title: "Умова (Ромб)",
     desc: "Розгалуження / перевірка",
-    icon: "◇",
     defaultText: "x > 0",
     w: 110,
     h: 52,
@@ -60,7 +131,6 @@ const SHAPES_PALETTE = [
     type: "input",
     title: "Ввід даних",
     desc: "Паралелограм введення (cin)",
-    icon: "▱",
     defaultText: "x",
     w: 115,
     h: 42,
@@ -69,7 +139,6 @@ const SHAPES_PALETTE = [
     type: "output",
     title: "Вивід даних",
     desc: "Документ / виведення (cout)",
-    icon: "📄",
     defaultText: "y",
     w: 115,
     h: 42,
@@ -78,7 +147,6 @@ const SHAPES_PALETTE = [
     type: "start",
     title: "Початок",
     desc: "Початковий вузол (овал)",
-    icon: "⬭",
     defaultText: "початок",
     w: 110,
     h: 40,
@@ -87,7 +155,6 @@ const SHAPES_PALETTE = [
     type: "end",
     title: "Кінець",
     desc: "Кінцевий вузол (овал)",
-    icon: "⬭",
     defaultText: "кінець",
     w: 110,
     h: 40,
@@ -96,7 +163,6 @@ const SHAPES_PALETTE = [
     type: "uml-action",
     title: "UML дія",
     desc: "Дія діяльності (скруглена)",
-    icon: "▢",
     defaultText: "action()",
     w: 120,
     h: 38,
@@ -105,12 +171,30 @@ const SHAPES_PALETTE = [
     type: "structure-chart-node",
     title: "Модуль програми",
     desc: "Блок структурної схеми",
-    icon: "▤",
     defaultText: "module()",
     w: 130,
     h: 46,
   },
 ];
+
+// Re-route an edge using ports or waypoints
+function rerouteEdge(edge, allNodes) {
+  if (edge.sourceNodeId && edge.targetNodeId) {
+    const srcNode = allNodes.find((n) => n.id === edge.sourceNodeId);
+    const tgtNode = allNodes.find((n) => n.id === edge.targetNodeId);
+    if (srcNode && tgtNode) {
+      const srcAnchors = getNodeAnchorPoints(srcNode);
+      const tgtAnchors = getNodeAnchorPoints(tgtNode);
+      const p1 = srcAnchors[edge.sourcePort || "bottom"] || { x: srcNode.cx, y: srcNode.cy, dir: "down" };
+      const p2 = tgtAnchors[edge.targetPort || "top"] || { x: tgtNode.cx, y: tgtNode.cy, dir: "up" };
+      return {
+        ...edge,
+        points: calculateOrthogonalRoute(p1, p1.dir, p2, p2.dir),
+      };
+    }
+  }
+  return edge;
+}
 
 export default function DiagramEditorModal({
   isOpen,
@@ -149,21 +233,39 @@ export default function DiagramEditorModal({
   const [pan, setPan] = useState({ x: 120, y: 70 });
   const [snapToGrid, setSnapToGrid] = useState(true);
 
-  // Selection
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  // Selection (supports multi-selection for strips and groups of blocks)
+  const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
+  const selectedNodeId = selectedNodeIds[0] || null;
+  const setSelectedNodeId = useCallback((id) => {
+    setSelectedNodeIds(id ? [id] : []);
+  }, []);
+
+  // Marquee selection box in canvas coordinates: { x, y, w, h }
+  const [marqueeBox, setMarqueeBox] = useState(null);
+  const marqueeStartCanvasRef = useRef({ x: 0, y: 0 });
+
+  // Spacebar pan mode & Touchpad canvas ref
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const canvasAreaRef = useRef(null);
+
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  useEffect(() => {
+    zoomRef.current = zoom;
+    panRef.current = pan;
+  }, [zoom, pan]);
 
   // Hover states
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
 
   // Connection Dragging (Anchor port to anchor port)
   const [connectingState, setConnectingState] = useState(null);
-  // { sourceNodeId, sourcePort, startPt: {x,y}, currentPt: {x,y}, targetNodeId, targetPort }
 
   // Dragging state
   const isDraggingRef = useRef(false);
-  const dragTypeRef = useRef(null); // 'node' | 'edge-point' | 'pan'
-  const dragTargetRef = useRef(null); // nodeId or { edgeId, pointIndex }
+  const dragTypeRef = useRef(null); // 'node' | 'edge-point' | 'edge-segment' | 'pan' | 'marquee'
+  const dragTargetRef = useRef(null);
   const dragStartMouseRef = useRef({ x: 0, y: 0 });
   const dragStartPositionsRef = useRef(null);
 
@@ -188,7 +290,7 @@ export default function DiagramEditorModal({
       const prev = history[historyIndex - 1];
       setHistoryIndex(historyIndex - 1);
       setGraph(prev);
-      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
       setSelectedEdgeId(null);
     }
   }, [history, historyIndex]);
@@ -198,7 +300,7 @@ export default function DiagramEditorModal({
       const next = history[historyIndex + 1];
       setHistoryIndex(historyIndex + 1);
       setGraph(next);
-      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
       setSelectedEdgeId(null);
     }
   }, [history, historyIndex]);
@@ -223,50 +325,145 @@ export default function DiagramEditorModal({
     return Math.round(val / step) * step;
   }, [snapToGrid]);
 
-  // Duplicate Selected Node
-  const handleDuplicateSelected = useCallback(() => {
-    if (!selectedNodeId) return;
-    const srcNode = graph.nodes.find((n) => n.id === selectedNodeId);
-    if (!srcNode) return;
+  // Natural Mac Touchpad pan & pinch-to-zoom handling
+  useEffect(() => {
+    if (!isOpen) return;
+    const canvasArea = canvasAreaRef.current;
+    if (!canvasArea) return;
 
-    const dupNode = {
-      ...srcNode,
-      id: `node_${nextIdRef.current++}`,
-      cx: srcNode.cx + 40,
-      cy: srcNode.cy + 40,
+    const onWheel = (e) => {
+      e.preventDefault();
+      const currentZoom = zoomRef.current;
+      const currentPan = panRef.current;
+
+      if (e.ctrlKey || e.metaKey) {
+        // Pinch-to-zoom or Ctrl+Wheel anchored at cursor
+        const zoomDelta = -e.deltaY * 0.005;
+        const targetZoom = Math.min(Math.max(0.2, currentZoom + zoomDelta), 3.0);
+        const rect = canvasArea.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const worldX = (mouseX - currentPan.x) / currentZoom;
+        const worldY = (mouseY - currentPan.y) / currentZoom;
+
+        setPan({
+          x: Math.round(mouseX - worldX * targetZoom),
+          y: Math.round(mouseY - worldY * targetZoom),
+        });
+        setZoom(targetZoom);
+      } else {
+        // Two-finger touchpad pan (smooth 2D translation)
+        setPan((prev) => ({
+          x: Math.round(prev.x - e.deltaX * 0.95),
+          y: Math.round(prev.y - e.deltaY * 0.95),
+        }));
+      }
     };
 
+    canvasArea.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      canvasArea.removeEventListener("wheel", onWheel);
+    };
+  }, [isOpen]);
+
+  // Spacebar pan mode listener
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (
+        e.target.tagName === "INPUT" ||
+        e.target.tagName === "TEXTAREA" ||
+        e.target.isContentEditable
+      ) {
+        return;
+      }
+      if (e.code === "Space" && !e.repeat) {
+        setIsSpacePressed(true);
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isOpen]);
+
+  // Duplicate Selected Node(s)
+  const handleDuplicateSelected = useCallback(() => {
+    if (!selectedNodeIds.length) return;
+    const newNodes = [];
+    selectedNodeIds.forEach((id) => {
+      const srcNode = graph.nodes.find((n) => n.id === id);
+      if (srcNode) {
+        newNodes.push({
+          ...srcNode,
+          id: `node_${nextIdRef.current++}`,
+          cx: srcNode.cx + 40,
+          cy: srcNode.cy + 40,
+        });
+      }
+    });
+    if (!newNodes.length) return;
     const nextGraph = {
       ...graph,
-      nodes: [...graph.nodes, dupNode],
+      nodes: [...graph.nodes, ...newNodes],
     };
     pushHistory(nextGraph);
-    setSelectedNodeId(dupNode.id);
-  }, [graph, selectedNodeId, pushHistory]);
+    setSelectedNodeIds(newNodes.map((n) => n.id));
+  }, [graph, selectedNodeIds, pushHistory]);
 
   // Delete Selected Entity
   const handleDeleteSelected = useCallback(() => {
-    if (selectedNodeId) {
-      const nextNodes = graph.nodes.filter((n) => n.id !== selectedNodeId);
+    if (selectedNodeIds.length > 0) {
+      const idSet = new Set(selectedNodeIds);
+      const nextNodes = graph.nodes.filter((n) => !idSet.has(n.id));
       const nextEdges = graph.edges.filter(
-        (e) => e.sourceNodeId !== selectedNodeId && e.targetNodeId !== selectedNodeId
+        (e) => !idSet.has(e.sourceNodeId) && !idSet.has(e.targetNodeId)
       );
       const nextGraph = { ...graph, nodes: nextNodes, edges: nextEdges };
       pushHistory(nextGraph);
-      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
     } else if (selectedEdgeId) {
       const nextEdges = graph.edges.filter((e) => e.id !== selectedEdgeId);
       const nextGraph = { ...graph, edges: nextEdges };
       pushHistory(nextGraph);
       setSelectedEdgeId(null);
     }
-  }, [graph, selectedNodeId, selectedEdgeId, pushHistory]);
+  }, [graph, selectedNodeIds, selectedEdgeId, pushHistory]);
 
-  // Keyboard Shortcuts: Delete, Ctrl+Z, Ctrl+Y, Ctrl+D
+  // Shift Section / Insert Space (move selected and all nodes below)
+  const handleShiftBelow = useCallback((deltaY = 60) => {
+    if (!graph.nodes.length) return;
+
+    let cutoffY = -Infinity;
+    if (selectedNodeIds.length > 0) {
+      const selected = graph.nodes.filter((n) => selectedNodeIds.includes(n.id));
+      cutoffY = Math.max(...selected.map((n) => n.cy + n.h / 2));
+    }
+
+    const nextNodes = graph.nodes.map((n) => {
+      if (selectedNodeIds.length === 0 || n.cy > cutoffY - 10) {
+        return { ...n, cy: snapCoord(n.cy + deltaY) };
+      }
+      return n;
+    });
+
+    const nextEdges = graph.edges.map((e) => rerouteEdge(e, nextNodes));
+    const nextGraph = { ...graph, nodes: nextNodes, edges: nextEdges };
+    pushHistory(nextGraph);
+  }, [graph, selectedNodeIds, snapCoord, pushHistory]);
+
+  // Keyboard Shortcuts: Delete, Ctrl+Z, Ctrl+Y, Ctrl+D, Alt+Down, Alt+Up
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
-      // Ignore if typing inside input or textarea
       if (
         e.target.tagName === "INPUT" ||
         e.target.tagName === "TEXTAREA" ||
@@ -291,8 +488,14 @@ export default function DiagramEditorModal({
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         handleDuplicateSelected();
+      } else if (e.altKey && e.key === "ArrowDown") {
+        e.preventDefault();
+        handleShiftBelow(60);
+      } else if (e.altKey && e.key === "ArrowUp") {
+        e.preventDefault();
+        handleShiftBelow(-60);
       } else if (e.key === "Escape") {
-        setSelectedNodeId(null);
+        setSelectedNodeIds([]);
         setSelectedEdgeId(null);
         setConnectingState(null);
         setEditingNodeId(null);
@@ -301,7 +504,7 @@ export default function DiagramEditorModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, handleUndo, handleRedo, handleDeleteSelected, handleDuplicateSelected]);
+  }, [isOpen, handleUndo, handleRedo, handleDeleteSelected, handleDuplicateSelected, handleShiftBelow]);
 
   if (!isOpen) return null;
 
@@ -316,25 +519,6 @@ export default function DiagramEditorModal({
     edgeSelected: "#2563eb",
     anchorFill: editorThemeDark ? "#38bdf8" : "#2563eb",
     anchorBorder: editorThemeDark ? "#090d16" : "#ffffff",
-  };
-
-  // Re-route an edge using ports or waypoints
-  const rerouteEdge = (edge, allNodes) => {
-    if (edge.sourceNodeId && edge.targetNodeId) {
-      const srcNode = allNodes.find((n) => n.id === edge.sourceNodeId);
-      const tgtNode = allNodes.find((n) => n.id === edge.targetNodeId);
-      if (srcNode && tgtNode) {
-        const srcAnchors = getNodeAnchorPoints(srcNode);
-        const tgtAnchors = getNodeAnchorPoints(tgtNode);
-        const p1 = srcAnchors[edge.sourcePort || "bottom"] || { x: srcNode.cx, y: srcNode.cy, dir: "down" };
-        const p2 = tgtAnchors[edge.targetPort || "top"] || { x: tgtNode.cx, y: tgtNode.cy, dir: "up" };
-        return {
-          ...edge,
-          points: calculateOrthogonalRoute(p1, p1.dir, p2, p2.dir),
-        };
-      }
-    }
-    return edge;
   };
 
   // --- Handlers: Magnetic Connection Drawing (Draw.io style) ---
@@ -355,27 +539,42 @@ export default function DiagramEditorModal({
   // --- Handlers: Node Dragging ---
   const handleNodeMouseDown = (e, nodeId) => {
     e.stopPropagation();
-    setSelectedNodeId(nodeId);
+
+    let newSelectedIds = selectedNodeIds;
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      if (selectedNodeIds.includes(nodeId)) {
+        newSelectedIds = selectedNodeIds.filter((id) => id !== nodeId);
+      } else {
+        newSelectedIds = [...selectedNodeIds, nodeId];
+      }
+    } else {
+      if (!selectedNodeIds.includes(nodeId)) {
+        newSelectedIds = [nodeId];
+      }
+    }
+    setSelectedNodeIds(newSelectedIds);
     setSelectedEdgeId(null);
+
     isDraggingRef.current = true;
     dragTypeRef.current = "node";
     dragTargetRef.current = nodeId;
     dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
 
-    const node = graph.nodes.find((n) => n.id === nodeId);
-    if (!node) return;
-
-    dragStartPositionsRef.current = {
-      nodeCx: node.cx,
-      nodeCy: node.cy,
-    };
+    const activeIds = newSelectedIds.length > 0 ? newSelectedIds : [nodeId];
+    const initialMap = {};
+    graph.nodes.forEach((n) => {
+      if (activeIds.includes(n.id)) {
+        initialMap[n.id] = { cx: n.cx, cy: n.cy };
+      }
+    });
+    dragStartPositionsRef.current = initialMap;
   };
 
   // --- Handlers: Edge Waypoint Dragging ---
   const handleEdgePointMouseDown = (e, edgeId, pointIndex) => {
     e.stopPropagation();
     setSelectedEdgeId(edgeId);
-    setSelectedNodeId(null);
+    setSelectedNodeIds([]);
     isDraggingRef.current = true;
     dragTypeRef.current = "edge-point";
     dragTargetRef.current = { edgeId, pointIndex };
@@ -390,21 +589,89 @@ export default function DiagramEditorModal({
     };
   };
 
-  // --- Handlers: Canvas MouseDown (Pan / Deselect) ---
+  // --- Handlers: Orthogonal Edge Segment Dragging ---
+  const handleEdgeSegmentMouseDown = (e, edgeId, segIndex, isHorizontal) => {
+    e.stopPropagation();
+    setSelectedEdgeId(edgeId);
+    setSelectedNodeIds([]);
+
+    const edge = graph.edges.find((ed) => ed.id === edgeId);
+    if (!edge) return;
+
+    let pts = edge.points.map((p) => ({ ...p }));
+    let activeSegIdx = segIndex;
+
+    // If straight line (2 points), split into 4 orthogonal points so middle segment can be dragged
+    if (pts.length === 2) {
+      if (isHorizontal) {
+        const midY = pts[0].y;
+        pts = [
+          { x: pts[0].x, y: pts[0].y },
+          { x: pts[0].x, y: midY },
+          { x: pts[1].x, y: midY },
+          { x: pts[1].x, y: pts[1].y },
+        ];
+        activeSegIdx = 1;
+      } else {
+        const midX = pts[0].x;
+        pts = [
+          { x: pts[0].x, y: pts[0].y },
+          { x: midX, y: pts[0].y },
+          { x: midX, y: pts[1].y },
+          { x: pts[1].x, y: pts[1].y },
+        ];
+        activeSegIdx = 1;
+      }
+    } else if (segIndex === 0) {
+      // First segment: insert a bend point so node anchor remains intact
+      pts.splice(1, 0, { x: pts[0].x, y: pts[0].y });
+      activeSegIdx = 1;
+    } else if (segIndex === pts.length - 2) {
+      // Last segment: insert a bend point so node target anchor remains intact
+      pts.splice(pts.length - 1, 0, { x: pts[pts.length - 1].x, y: pts[pts.length - 1].y });
+    }
+
+    isDraggingRef.current = true;
+    dragTypeRef.current = "edge-segment";
+    dragTargetRef.current = { edgeId, segIndex: activeSegIdx, isHorizontal };
+    dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
+    dragStartPositionsRef.current = { points: pts };
+  };
+
+  // --- Handlers: Canvas MouseDown (Marquee Selection / Pan) ---
   const handleCanvasMouseDown = (e) => {
-    if (e.target.closest(".studio-left-sidebar") || e.target.closest(".studio-right-sidebar")) {
+    if (
+      e.target.closest(".drawio-shapes-sidebar") ||
+      e.target.closest(".drawio-properties-sidebar") ||
+      e.target.closest(".drawio-top-bar")
+    ) {
       return;
     }
-    setSelectedNodeId(null);
-    setSelectedEdgeId(null);
     if (editingNodeId) {
       handleFinishTextEdit();
     }
 
+    if (isSpacePressed || e.button === 1) {
+      // Pan canvas
+      isDraggingRef.current = true;
+      dragTypeRef.current = "pan";
+      dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
+      dragStartPositionsRef.current = { panX: pan.x, panY: pan.y };
+      return;
+    }
+
+    // Marquee selection box on empty canvas drag
+    if (!e.shiftKey) {
+      setSelectedNodeIds([]);
+      setSelectedEdgeId(null);
+    }
+    const canvasPt = screenToCanvas(e.clientX, e.clientY);
+    marqueeStartCanvasRef.current = canvasPt;
+    setMarqueeBox({ x: canvasPt.x, y: canvasPt.y, w: 0, h: 0 });
+
     isDraggingRef.current = true;
-    dragTypeRef.current = "pan";
+    dragTypeRef.current = "marquee";
     dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
-    dragStartPositionsRef.current = { panX: pan.x, panY: pan.y };
   };
 
   // --- Handlers: Mouse Move ---
@@ -412,7 +679,6 @@ export default function DiagramEditorModal({
     // 1. If currently dragging an anchor connection
     if (connectingState) {
       const cPos = screenToCanvas(e.clientX, e.clientY);
-      // Check if hovering near another node
       let snapTarget = null;
       let snapPort = null;
       let minDist = 30;
@@ -443,24 +709,28 @@ export default function DiagramEditorModal({
     const dxCanvas = dxScreen / zoom;
     const dyCanvas = dyScreen / zoom;
 
-    // 2. Dragging a Node
+    // 2. Dragging Node(s) - translates whole selection strip/group together
     if (dragTypeRef.current === "node") {
-      const nodeId = dragTargetRef.current;
-      const initial = dragStartPositionsRef.current;
-      if (!initial) return;
+      const initialMap = dragStartPositionsRef.current;
+      if (!initialMap) return;
 
-      const rawCx = initial.nodeCx + dxCanvas;
-      const rawCy = initial.nodeCy + dyCanvas;
-      const newCx = snapCoord(rawCx);
-      const newCy = snapCoord(rawCy);
-
+      const idSet = new Set(Object.keys(initialMap));
       setGraph((prev) => {
-        const nextNodes = prev.nodes.map((n) =>
-          n.id === nodeId ? { ...n, cx: newCx, cy: newCy } : n
-        );
+        const nextNodes = prev.nodes.map((n) => {
+          if (idSet.has(n.id)) {
+            const init = initialMap[n.id];
+            return {
+              ...n,
+              cx: snapCoord(init.cx + dxCanvas),
+              cy: snapCoord(init.cy + dyCanvas),
+            };
+          }
+          return n;
+        });
+
         // Automatically re-route all attached orthogonal edges!
         const nextEdges = prev.edges.map((edge) => {
-          if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
+          if (idSet.has(edge.sourceNodeId) || idSet.has(edge.targetNodeId)) {
             return rerouteEdge(edge, nextNodes);
           }
           return edge;
@@ -488,7 +758,68 @@ export default function DiagramEditorModal({
         return { ...prev, edges: nextEdges };
       });
     }
-    // 4. Pan canvas
+    // 4. Dragging an Orthogonal Edge Segment
+    else if (dragTypeRef.current === "edge-segment") {
+      const { edgeId, segIndex, isHorizontal } = dragTargetRef.current;
+      const initial = dragStartPositionsRef.current;
+      if (!initial || !initial.points) return;
+
+      const pA = initial.points[segIndex];
+      const pB = initial.points[segIndex + 1];
+      if (!pA || !pB) return;
+
+      setGraph((prev) => {
+        const nextEdges = prev.edges.map((edge) => {
+          if (edge.id !== edgeId) return edge;
+          const pts = initial.points.map((p) => ({ ...p }));
+          if (isHorizontal) {
+            const newY = snapCoord(pA.y + dyCanvas);
+            pts[segIndex].y = newY;
+            pts[segIndex + 1].y = newY;
+          } else {
+            const newX = snapCoord(pA.x + dxCanvas);
+            pts[segIndex].x = newX;
+            pts[segIndex + 1].x = newX;
+          }
+          return { ...edge, points: pts };
+        });
+        return { ...prev, edges: nextEdges };
+      });
+    }
+    // 5. Marquee Box Selection Drag
+    else if (dragTypeRef.current === "marquee") {
+      const curCanvasPt = screenToCanvas(e.clientX, e.clientY);
+      const start = marqueeStartCanvasRef.current;
+      const boxX = Math.min(start.x, curCanvasPt.x);
+      const boxY = Math.min(start.y, curCanvasPt.y);
+      const boxW = Math.abs(curCanvasPt.x - start.x);
+      const boxH = Math.abs(curCanvasPt.y - start.y);
+      setMarqueeBox({ x: boxX, y: boxY, w: boxW, h: boxH });
+
+      // Find intersecting nodes
+      const intersectingNodeIds = graph.nodes
+        .filter((node) => {
+          const nodeLeft = node.cx - node.w / 2;
+          const nodeRight = node.cx + node.w / 2;
+          const nodeTop = node.cy - node.h / 2;
+          const nodeBottom = node.cy + node.h / 2;
+          return (
+            nodeRight >= boxX &&
+            nodeLeft <= boxX + boxW &&
+            nodeBottom >= boxY &&
+            nodeTop <= boxY + boxH
+          );
+        })
+        .map((n) => n.id);
+
+      setSelectedNodeIds((prev) => {
+        if (e.shiftKey) {
+          return Array.from(new Set([...prev, ...intersectingNodeIds]));
+        }
+        return intersectingNodeIds;
+      });
+    }
+    // 6. Pan canvas
     else if (dragTypeRef.current === "pan") {
       const initial = dragStartPositionsRef.current;
       if (!initial) return;
@@ -532,28 +863,28 @@ export default function DiagramEditorModal({
           };
           pushHistory(nextGraph);
           setSelectedEdgeId(newEdge.id);
-          setSelectedNodeId(null);
+          setSelectedNodeIds([]);
         }
       }
       setConnectingState(null);
     }
 
+    if (dragTypeRef.current === "marquee") {
+      setMarqueeBox(null);
+    }
+
     if (isDraggingRef.current) {
-      if (dragTypeRef.current === "node" || dragTypeRef.current === "edge-point") {
+      if (
+        dragTypeRef.current === "node" ||
+        dragTypeRef.current === "edge-point" ||
+        dragTypeRef.current === "edge-segment"
+      ) {
         pushHistory(graph);
       }
       isDraggingRef.current = false;
       dragTypeRef.current = null;
       dragTargetRef.current = null;
     }
-  };
-
-  // Wheel zoom
-  const handleWheel = (e) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    const nextZoom = Math.min(Math.max(0.2, zoom * zoomFactor), 3.0);
-    setZoom(nextZoom);
   };
 
   // Double click to edit text inline
@@ -738,16 +1069,31 @@ export default function DiagramEditorModal({
             <div className="drawio-sep" />
             <button
               className="drawio-tool-btn"
+              onClick={() => handleShiftBelow(60)}
+              title="Розсунути місце вниз: посунути всі нижні блоки на +60px (Alt+↓)"
+            >
+              <ArrowDownFromLine size={15} />
+            </button>
+            <button
+              className="drawio-tool-btn"
+              onClick={() => handleShiftBelow(-60)}
+              title="Зсунути блоки вгору: прибрати порожнє місце на -60px (Alt+↑)"
+            >
+              <ArrowUpFromLine size={15} />
+            </button>
+            <div className="drawio-sep" />
+            <button
+              className="drawio-tool-btn"
               onClick={handleDuplicateSelected}
-              disabled={!selectedNodeId}
-              title="Дублювати виділений блок (Ctrl+D)"
+              disabled={selectedNodeIds.length === 0}
+              title="Дублювати виділені блоки (Ctrl+D)"
             >
               <Copy size={15} />
             </button>
             <button
               className="drawio-tool-btn text-danger"
               onClick={handleDeleteSelected}
-              disabled={!selectedNodeId && !selectedEdgeId}
+              disabled={selectedNodeIds.length === 0 && !selectedEdgeId}
               title="Видалити виділене (Delete)"
             >
               <Trash2 size={15} />
@@ -809,7 +1155,9 @@ export default function DiagramEditorModal({
                   onClick={() => handleAddShape(shape)}
                   title={`Додати ${shape.title}: ${shape.desc}`}
                 >
-                  <span className="shape-icon-preview">{shape.icon}</span>
+                  <span className="shape-icon-preview">
+                    <ShapePaletteIcon type={shape.type} />
+                  </span>
                   <div className="shape-meta">
                     <span className="shape-name">{shape.title}</span>
                     <span className="shape-desc">{shape.desc}</span>
@@ -826,11 +1174,11 @@ export default function DiagramEditorModal({
 
           {/* --- Center Column: Interactive Canvas --- */}
           <main
-            className="drawio-canvas-area"
+            ref={canvasAreaRef}
+            className={`drawio-canvas-area ${isSpacePressed ? "space-panning" : ""}`}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onWheel={handleWheel}
           >
             <svg
               ref={canvasRef}
@@ -1007,6 +1355,37 @@ export default function DiagramEditorModal({
                               />
                             );
                           })}
+
+                        {/* Interactive Segment Drag Handles (Draw.io style for strips & lines) */}
+                        {isSelected &&
+                          pts.slice(0, -1).map((pA, segIdx) => {
+                            const pB = pts[segIdx + 1];
+                            const isHoriz = Math.abs(pA.y - pB.y) < 3;
+                            const isVert = Math.abs(pA.x - pB.x) < 3;
+                            if (!isHoriz && !isVert) return null;
+                            const midX = (pA.x + pB.x) / 2;
+                            const midY = (pA.y + pB.y) / 2;
+                            const len = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+                            if (len < 16) return null;
+
+                            return (
+                              <rect
+                                key={`seg_${segIdx}`}
+                                x={midX - 4}
+                                y={midY - 4}
+                                width="8"
+                                height="8"
+                                rx="2"
+                                fill="#ffffff"
+                                stroke="#2563eb"
+                                strokeWidth="1.8"
+                                className={`drawio-segment-handle ${isHoriz ? "horizontal" : ""}`}
+                                onMouseDown={(e) =>
+                                  handleEdgeSegmentMouseDown(e, edge.id, segIdx, isHoriz)
+                                }
+                              />
+                            );
+                          })}
                       </g>
                     );
                   })}
@@ -1029,7 +1408,7 @@ export default function DiagramEditorModal({
                 {/* 2. NODES LAYER */}
                 <g className="drawio-nodes-layer">
                   {graph.nodes.map((node) => {
-                    const isSelected = selectedNodeId === node.id;
+                    const isSelected = selectedNodeIds.includes(node.id);
                     const isHovered = hoveredNodeId === node.id;
                     const isSnapTarget = connectingState?.targetNodeId === node.id;
                     const x = node.cx - node.w / 2;
@@ -1199,6 +1578,18 @@ export default function DiagramEditorModal({
                     );
                   })}
                 </g>
+
+                {/* 3. MARQUEE SELECTION BOX */}
+                {marqueeBox && marqueeBox.w > 2 && marqueeBox.h > 2 && (
+                  <rect
+                    x={marqueeBox.x}
+                    y={marqueeBox.y}
+                    width={marqueeBox.w}
+                    height={marqueeBox.h}
+                    className="drawio-marquee-box"
+                    pointerEvents="none"
+                  />
+                )}
               </g>
             </svg>
 
@@ -1271,7 +1662,47 @@ export default function DiagramEditorModal({
               <span>Панель властивостей</span>
             </div>
 
-            {selectedNode ? (
+            {selectedNodeIds.length > 1 ? (
+              <div className="properties-body">
+                <div className="prop-section">
+                  <label className="prop-label">
+                    <Square size={13} /> Виділена група блоків: {selectedNodeIds.length}
+                  </label>
+                  <span className="prop-subtext">
+                    Перетягуйте мишкою будь-який виділений блок — вся група (смуга) переміщуватиметься разом зі збереженням зв'язків.
+                  </span>
+                </div>
+
+                <div className="prop-section-actions">
+                  <button
+                    className="btn btn-secondary btn-sm w-full mb-2"
+                    onClick={() => handleShiftBelow(60)}
+                    title="Розсунути місце вниз: посунути всі нижні блоки на +60px"
+                  >
+                    <ArrowDownFromLine size={13} /> Розсунути місце вниз (+60px)
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm w-full mb-2"
+                    onClick={() => handleShiftBelow(-60)}
+                    title="Зсунути блоки вгору: прибрати порожнє місце на -60px"
+                  >
+                    <ArrowUpFromLine size={13} /> Зсунути блоки вгору (-60px)
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm w-full mb-2"
+                    onClick={handleDuplicateSelected}
+                  >
+                    <Copy size={13} /> Дублювати всі {selectedNodeIds.length} блоки (Ctrl+D)
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm w-full"
+                    onClick={handleDeleteSelected}
+                  >
+                    <Trash2 size={13} /> Видалити виділені блоки (Delete)
+                  </button>
+                </div>
+              </div>
+            ) : selectedNode ? (
               <div className="properties-body">
                 <div className="prop-section">
                   <label className="prop-label">
@@ -1299,7 +1730,7 @@ export default function DiagramEditorModal({
                   >
                     {SHAPES_PALETTE.map((bt) => (
                       <option key={bt.type} value={bt.type}>
-                        {bt.icon} {bt.title}
+                        {bt.title}
                       </option>
                     ))}
                   </select>
@@ -1400,15 +1831,16 @@ export default function DiagramEditorModal({
                 </p>
 
                 <div className="drawio-guide-card">
-                  <h4>⚡ Швидкі клавіші:</h4>
+                  <h4>⚡ Зручні дії та жести:</h4>
                   <ul>
-                    <li><kbd>Ctrl+Z</kbd> — Скасувати дію</li>
-                    <li><kbd>Ctrl+Y</kbd> — Повернути дію</li>
-                    <li><kbd>Ctrl+D</kbd> — Дублювати блок</li>
+                    <li><kbd>Двома пальцями</kbd> — Плавне панорамування</li>
+                    <li><kbd>Pinch / Ctrl+Колесо</kbd> — Плавний зум</li>
+                    <li><kbd>Space + Drag</kbd> — Панорамування полотна</li>
+                    <li><kbd>Drag тла</kbd> — Рамка виділення смуги/групи</li>
+                    <li><kbd>Alt+↓ / Alt+↑</kbd> — Розсунути / зсунути блоки</li>
+                    <li><kbd>Ctrl+D</kbd> — Дублювати виділені блоки</li>
                     <li><kbd>Delete</kbd> — Видалити виділене</li>
-                    <li><kbd>2x-Click</kbd> — Редагувати текст</li>
-                    <li><kbd>Колесо</kbd> — Масштабування</li>
-                    <li><kbd>Drag тла</kbd> — Панорамування</li>
+                    <li><kbd>2x-Click</kbd> — Швидке редагування тексту</li>
                   </ul>
                 </div>
               </div>
