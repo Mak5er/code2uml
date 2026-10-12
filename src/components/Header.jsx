@@ -1,9 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import {
   Zap,
-  Download,
-  FileCode,
-  Image as ImageIcon,
   Moon,
   Sun,
   Heart,
@@ -14,37 +11,14 @@ import { trackEvent } from "../utils/analytics.js";
 
 export default function Header({
   onGenerate,
-  onExportSvg,
-  onExportPng,
   isDark,
   onToggleTheme,
-  activeTab,
   functions = [],
   selectedFunction = "main",
   onSelectFunction,
   expressionMode = "cpp",
   onOpenSettings,
 }) {
-  const [downloadOpen, setDownloadOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDownloadOpen(false);
-      }
-    };
-    if (downloadOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [downloadOpen]);
-
-  const isBoth = activeTab === "side-by-side";
-
   return (
     <header className="app-header">
       <div className="brand">
@@ -57,11 +31,11 @@ export default function Header({
 
       <div className="header-controls">
         <button
-          className="btn btn-primary"
+          className="btn btn-primary btn-generate"
           onClick={onGenerate}
-          title="Згенерувати діаграми (Ctrl+Enter / Cmd+Enter)"
+          title="Оновити діаграми (Ctrl+Enter / Cmd+Enter)"
         >
-          <Zap size={15} strokeWidth={2.5} />
+          <Zap size={14} strokeWidth={2.5} />
           <span>Згенерувати</span>
         </button>
 
@@ -90,7 +64,7 @@ export default function Header({
           onClick={onOpenSettings}
           title="Налаштування генерації діаграм (вирази, ГОСТ, колонки, ввід/вивід, символи викликів)"
         >
-          <Settings size={15} strokeWidth={2} />
+          <Settings size={14} strokeWidth={2} />
           <span>Налаштування</span>
           {expressionMode === "math" && (
             <span className="settings-active-badge" title="Математичний режим активний">∑</span>
@@ -98,67 +72,6 @@ export default function Header({
         </button>
 
         <div className="divider-v" />
-
-        {/* Icon-only Download button with Dropdown menu (SVG or PNG) */}
-        <div className="download-dropdown" ref={dropdownRef}>
-          <button
-            className="btn btn-outline btn-icon"
-            onClick={() => setDownloadOpen((prev) => !prev)}
-            title="Завантажити діаграми (вибір SVG або PNG)"
-            aria-expanded={downloadOpen}
-            aria-label="Завантажити діаграми"
-          >
-            <Download size={16} strokeWidth={2} />
-          </button>
-
-          {downloadOpen && (
-            <div className="dropdown-menu">
-              <button
-                className="dropdown-item"
-                onClick={() => {
-                  setDownloadOpen(false);
-                  onExportSvg();
-                }}
-              >
-                <div className="dropdown-item-icon">
-                  <FileCode size={16} strokeWidth={2} />
-                </div>
-                <div className="dropdown-item-text">
-                  <span className="dropdown-item-title">
-                    Векторний SVG {isBoth ? "(2 файли)" : "(.svg)"}
-                  </span>
-                  <span className="dropdown-item-desc">
-                    {isBoth
-                      ? "Завантажити блок-схему та UML як .svg"
-                      : "Для звіту / Word без втрати якості"}
-                  </span>
-                </div>
-              </button>
-
-              <button
-                className="dropdown-item"
-                onClick={() => {
-                  setDownloadOpen(false);
-                  onExportPng();
-                }}
-              >
-                <div className="dropdown-item-icon">
-                  <ImageIcon size={16} strokeWidth={2} />
-                </div>
-                <div className="dropdown-item-text">
-                  <span className="dropdown-item-title">
-                    Зображення PNG {isBoth ? "(2 файли)" : "(.png)"}
-                  </span>
-                  <span className="dropdown-item-desc">
-                    {isBoth
-                      ? "Завантажити блок-схему та UML (2.5x High-DPI)"
-                      : "Чітка картинка 2.5x High-DPI"}
-                  </span>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Pure icon theme button reflecting current theme */}
         <button
@@ -172,9 +85,9 @@ export default function Header({
           aria-label="Перемкнути тему"
         >
           {isDark ? (
-            <Moon size={16} strokeWidth={2} className="theme-icon-active" />
+            <Moon size={15} strokeWidth={2} className="theme-icon-active" />
           ) : (
-            <Sun size={16} strokeWidth={2} className="theme-icon-active" />
+            <Sun size={15} strokeWidth={2} className="theme-icon-active" />
           )}
         </button>
 
@@ -194,10 +107,11 @@ export default function Header({
             })
           }
         >
-          <Heart size={14} className="donate-icon" fill="currentColor" />
-          <span>Донат</span>
+          <Heart size={13} className="donate-icon" fill="currentColor" />
+          <span>Підтримати</span>
         </a>
       </div>
     </header>
   );
 }
+

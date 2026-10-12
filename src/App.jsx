@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Header from "./components/Header";
 import CodeEditor from "./components/CodeEditor";
 import ViewerPanel from "./components/ViewerPanel";
@@ -160,6 +161,66 @@ export default function App() {
       return false;
     }
   });
+
+  // Resizable & Collapsible code editor panel state
+  const [editorWidth, setEditorWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem("editorWidth");
+      return saved ? Number(saved) : 440;
+    } catch {
+      return 440;
+    }
+  });
+
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("isEditorCollapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const isResizingRef = useRef(false);
+
+  const handleResizerMouseDown = (e) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (moveEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = Math.min(Math.max(260, moveEvent.clientX), 750);
+      setEditorWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      setEditorWidth((w) => {
+        try {
+          localStorage.setItem("editorWidth", String(w));
+        } catch {}
+        return w;
+      });
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const handleToggleCollapseEditor = () => {
+    setIsEditorCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("isEditorCollapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const flowchartRef = useRef(null);
   const umlRef = useRef(null);
@@ -418,123 +479,6 @@ export default function App() {
     showToast("✓ Діаграму відновлено з C++ коду");
   };
 
-  // Export Helpers
-  const getActiveSvgElement = () => {
-    if (activeTab === "uml") {
-      return umlRef.current?.querySelector("svg") || null;
-    }
-    if (activeTab === "structure-chart") {
-      return structureChartRef.current?.querySelector("svg") || null;
-    }
-    return flowchartRef.current?.querySelector("svg") || null;
-  };
-
-  const handleExportSvg = () => {
-    if (activeTab === "all" || activeTab === "side-by-side") {
-      const fcEl = flowchartRef.current?.querySelector("svg");
-      const umlEl = umlRef.current?.querySelector("svg");
-      const scEl = structureChartRef.current?.querySelector("svg");
-      if (!fcEl && !umlEl && !scEl) {
-        showToast("Спочатку згенеруйте діаграми");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "svg",
-        diagram_type: "all",
-        trigger: "header_menu",
-      });
-      if (fcEl) {
-        exportSvg(fcEl, "flowchart.svg");
-      }
-      if (umlEl) {
-        setTimeout(() => {
-          exportSvg(umlEl, "uml_activity.svg");
-        }, 150);
-      }
-      if (scEl) {
-        setTimeout(() => {
-          exportSvg(scEl, "structure_chart.svg");
-        }, 300);
-      }
-      showToast("✓ Завантажено файли діаграм (.svg)");
-    } else {
-      const svgEl = getActiveSvgElement();
-      if (!svgEl) {
-        showToast("Спочатку згенеруйте діаграму");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "svg",
-        diagram_type: activeTab,
-        trigger: "header_menu",
-      });
-      const filename =
-        activeTab === "uml"
-          ? "uml_activity.svg"
-          : activeTab === "structure-chart"
-            ? "structure_chart.svg"
-            : "flowchart.svg";
-      exportSvg(svgEl, filename);
-      showToast(`✓ Завантажено ${filename}`);
-    }
-  };
-
-  const handleExportPng = async () => {
-    if (activeTab === "all" || activeTab === "side-by-side") {
-      const fcEl = flowchartRef.current?.querySelector("svg");
-      const umlEl = umlRef.current?.querySelector("svg");
-      const scEl = structureChartRef.current?.querySelector("svg");
-      if (!fcEl && !umlEl && !scEl) {
-        showToast("Спочатку згенеруйте діаграми");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "png",
-        diagram_type: "all",
-        trigger: "header_menu",
-      });
-      try {
-        if (fcEl) {
-          await exportPng(fcEl, "flowchart.png", 2.5);
-        }
-        if (umlEl) {
-          await new Promise((r) => setTimeout(r, 150));
-          await exportPng(umlEl, "uml_activity.png", 2.5);
-        }
-        if (scEl) {
-          await new Promise((r) => setTimeout(r, 150));
-          await exportPng(scEl, "structure_chart.png", 2.5);
-        }
-        showToast("✓ Завантажено файли діаграм (.png)");
-      } catch {
-        showToast("Не вдалося експортувати PNG");
-      }
-    } else {
-      const svgEl = getActiveSvgElement();
-      if (!svgEl) {
-        showToast("Спочатку згенеруйте діаграму");
-        return;
-      }
-      trackEvent("export_diagram", {
-        format: "png",
-        diagram_type: activeTab,
-        trigger: "header_menu",
-      });
-      const filename =
-        activeTab === "uml"
-          ? "uml_activity.png"
-          : activeTab === "structure-chart"
-            ? "structure_chart.png"
-            : "flowchart.png";
-      try {
-        await exportPng(svgEl, filename, 2.5);
-        showToast(`✓ Завантажено ${filename}`);
-      } catch {
-        showToast("Не вдалося експортувати PNG");
-      }
-    }
-  };
-
   const handleDownloadCardSvg = (svgEl, name) => {
     if (!svgEl) return;
     trackEvent("export_diagram", {
@@ -565,11 +509,8 @@ export default function App() {
     <div className="app-root">
       <Header
         onGenerate={() => generateDiagrams(code, null, false)}
-        onExportSvg={handleExportSvg}
-        onExportPng={handleExportPng}
         isDark={isDark}
         onToggleTheme={toggleTheme}
-        activeTab={activeTab}
         functions={functions}
         selectedFunction={selectedFunction}
         onSelectFunction={handleSelectFunction}
@@ -578,13 +519,41 @@ export default function App() {
       />
 
       <main className="app-container">
-        <CodeEditor
-          code={code}
-          onChange={handleCodeChange}
-          onClear={handleClearCode}
-          onGenerate={() => generateDiagrams(code, false)}
-          status={status}
-        />
+        {!isEditorCollapsed && (
+          <div
+            className="editor-resizable-wrapper"
+            style={{ width: `${editorWidth}px` }}
+          >
+            <CodeEditor
+              code={code}
+              onChange={handleCodeChange}
+              onClear={handleClearCode}
+              onGenerate={() => generateDiagrams(code, false)}
+              status={status}
+              onCollapse={handleToggleCollapseEditor}
+            />
+          </div>
+        )}
+
+        <div
+          className={`app-pane-resizer ${isEditorCollapsed ? "collapsed" : ""}`}
+          onMouseDown={!isEditorCollapsed ? handleResizerMouseDown : undefined}
+          title={isEditorCollapsed ? "Розгорнути панель коду" : "Потягніть для зміни ширини або клікніть для згортання"}
+        >
+          <button
+            type="button"
+            className="pane-collapse-btn"
+            onClick={handleToggleCollapseEditor}
+            title={isEditorCollapsed ? "Розгорнути панель коду" : "Згорнути панель коду"}
+            aria-label={isEditorCollapsed ? "Розгорнути панель коду" : "Згорнути панель коду"}
+          >
+            {isEditorCollapsed ? (
+              <ChevronRight size={13} strokeWidth={2.5} />
+            ) : (
+              <ChevronLeft size={13} strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
 
         <ViewerPanel
           activeTab={activeTab}
@@ -607,6 +576,7 @@ export default function App() {
             uml: Boolean(customSvgByTab.uml),
             "structure-chart": Boolean(customSvgByTab["structure-chart"]),
           }}
+          onToast={showToast}
         />
       </main>
 

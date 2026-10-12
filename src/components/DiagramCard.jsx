@@ -1,4 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { Copy, Check } from 'lucide-react';
+import { copyPngToClipboard } from '../utils/exportUtils.js';
 
 export default function DiagramCard({
     id,
@@ -10,10 +12,12 @@ export default function DiagramCard({
     onDownloadPng,
     innerRef,
     extraActions,
-    onEdit
+    onEdit,
+    onToast
 }) {
     const localContentRef = useRef(null);
     const contentRef = innerRef || localContentRef;
+    const [copied, setCopied] = useState(false);
 
     const handleSvgDownload = () => {
         const svgEl = contentRef.current ? contentRef.current.querySelector('svg') : null;
@@ -26,6 +30,20 @@ export default function DiagramCard({
         const svgEl = contentRef.current ? contentRef.current.querySelector('svg') : null;
         if (svgEl) {
             onDownloadPng(svgEl);
+        }
+    };
+
+    const handleCopy = async () => {
+        const svgEl = contentRef.current ? contentRef.current.querySelector('svg') : null;
+        if (!svgEl) return;
+        try {
+            await copyPngToClipboard(svgEl);
+            setCopied(true);
+            if (onToast) onToast('Діаграму скопійовано в буфер! Вставте у Word (Ctrl+V)');
+            setTimeout(() => setCopied(false), 2200);
+        } catch (err) {
+            console.error('Copy PNG failed:', err);
+            if (onToast) onToast('Не вдалося скопіювати в буфер (потрібен HTTPS/сучасний браузер)');
         }
     };
 
@@ -47,6 +65,14 @@ export default function DiagramCard({
                             ✏️ Редагувати
                         </button>
                     )}
+                    <button
+                        className={`btn-card-action btn-card-copy ${copied ? 'copied' : ''}`}
+                        onClick={handleCopy}
+                        title={`Скопіювати зображення (${title}) у буфер обміну для Word / Docs (Ctrl+V)`}
+                    >
+                        {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+                        <span>{copied ? 'Скопійовано!' : 'Буфер'}</span>
+                    </button>
                     <button
                         className="btn-card-action"
                         onClick={handleSvgDownload}
