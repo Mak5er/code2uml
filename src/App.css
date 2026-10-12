@@ -170,6 +170,36 @@ html, body {
     border-color: var(--border-hover);
 }
 
+.btn-secondary {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.btn-danger {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+}
+
+.btn-danger:hover {
+    background-color: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
+
+.btn-sm {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+}
+
 .btn-icon {
     width: 34px;
     height: 34px;
@@ -2257,6 +2287,94 @@ html.dark .visual-editor-canvas-container {
 .drawio-modal-overlay.dark .drawio-close-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     color: #f8fafc;
+}
+
+/* Drawio Modal Button Theming */
+.drawio-studio-window .btn {
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 12.5px;
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawio-modal-overlay .btn-secondary {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+}
+
+.drawio-modal-overlay .btn-secondary:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.drawio-modal-overlay.dark .btn-secondary {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #f1f5f9;
+}
+
+.drawio-modal-overlay.dark .btn-secondary:hover {
+    background: #334155;
+    border-color: #475569;
+    color: #ffffff;
+}
+
+.drawio-modal-overlay .btn-danger {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+}
+
+.drawio-modal-overlay .btn-danger:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
+
+.drawio-modal-overlay.dark .btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+
+.drawio-modal-overlay.dark .btn-danger:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.55);
+    color: #fca5a5;
+}
+
+.drawio-modal-overlay .btn-primary {
+    background: #2563eb;
+    border: 1px solid #1d4ed8;
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+.drawio-modal-overlay .btn-primary:hover {
+    background: #1d4ed8;
+    border-color: #1e40af;
+}
+
+.drawio-modal-overlay.dark .btn-primary {
+    background: #2563eb;
+    border: 1px solid #3b82f6;
+    color: #ffffff;
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+}
+
+.drawio-modal-overlay.dark .btn-primary:hover {
+    background: #1d4ed8;
+    border-color: #60a5fa;
+}
+
+.prop-section-actions .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 7px 12px;
 }
 
 /* Studio 3-Column Body */

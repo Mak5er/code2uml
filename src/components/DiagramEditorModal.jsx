@@ -659,8 +659,6 @@ export default function DiagramEditorModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, handleUndo, handleRedo, handleDeleteSelected, handleDuplicateSelected, handleShiftBelow]);
 
-  if (!isOpen) return null;
-
   // Colors based on editor theme
   const colors = {
     canvasBg: editorThemeDark ? "#090d16" : "#f8fafc",
@@ -859,6 +857,23 @@ export default function DiagramEditorModal({
 
     if (!isDraggingRef.current) return;
 
+    // Safety guard: if mouse button is not pressed (e.buttons === 0), cancel any stale drag immediately!
+    if (e && e.buttons === 0) {
+      if (
+        dragTypeRef.current === "node" ||
+        dragTypeRef.current === "edge-point" ||
+        dragTypeRef.current === "edge-segment"
+      ) {
+        pushHistory(graph);
+      }
+      isDraggingRef.current = false;
+      dragTypeRef.current = null;
+      dragTargetRef.current = null;
+      setConnectingState(null);
+      setMarqueeBox(null);
+      return;
+    }
+
     const dxScreen = e.clientX - dragStartMouseRef.current.x;
     const dyScreen = e.clientY - dragStartMouseRef.current.y;
     const dxCanvas = dxScreen / zoom;
@@ -986,72 +1001,101 @@ export default function DiagramEditorModal({
   };
 
   // --- Handlers: Mouse Up ---
-  const handleMouseUp = () => {
-    // Finish anchor connection if active
-    if (connectingState) {
-      if (connectingState.targetNodeId && connectingState.targetPort) {
-        const srcNode = graph.nodes.find((n) => n.id === connectingState.sourceNodeId);
-        const tgtNode = graph.nodes.find((n) => n.id === connectingState.targetNodeId);
-        if (srcNode && tgtNode) {
-          const srcAnchors = getNodeAnchorPoints(srcNode);
-          const tgtAnchors = getNodeAnchorPoints(tgtNode);
-          const p1 = srcAnchors[connectingState.sourcePort];
-          const p2 = tgtAnchors[connectingState.targetPort];
+  const handleMouseUp = (e) => {
+    try {
+      // Finish anchor connection if active
+      if (connectingState) {
+        if (connectingState.targetNodeId && connectingState.targetPort) {
+          const srcNode = graph.nodes.find((n) => n.id === connectingState.sourceNodeId);
+          const tgtNode = graph.nodes.find((n) => n.id === connectingState.targetNodeId);
+          if (srcNode && tgtNode) {
+            const srcAnchors = getNodeAnchorPoints(srcNode);
+            const tgtAnchors = getNodeAnchorPoints(tgtNode);
+            const p1 = srcAnchors[connectingState.sourcePort];
+            const p2 = tgtAnchors[connectingState.targetPort];
 
-          const newEdge = {
-            id: `edge_${nextIdRef.current++}`,
-            sourceNodeId: srcNode.id,
-            sourcePort: connectingState.sourcePort,
-            targetNodeId: tgtNode.id,
-            targetPort: connectingState.targetPort,
-            points: calculateOrthogonalRoute(p1, p1.dir, p2, p2.dir),
-            hasArrow: true,
-            marker: diagramType === "uml" ? "arrow-uml" : "arrow-flow",
-            isOrthogonal: true,
-            label: "",
-            labelPos: null,
-          };
+            const newEdge = {
+              id: `edge_${nextIdRef.current++}`,
+              sourceNodeId: srcNode.id,
+              sourcePort: connectingState.sourcePort,
+              targetNodeId: tgtNode.id,
+              targetPort: connectingState.targetPort,
+              points: calculateOrthogonalRoute(p1, p1.dir, p2, p2.dir),
+              hasArrow: true,
+              marker: diagramType === "uml" ? "arrow-uml" : "arrow-flow",
+              isOrthogonal: true,
+              label: "",
+              labelPos: null,
+            };
 
-          const nextGraph = {
-            ...graph,
-            edges: [...graph.edges, newEdge],
-          };
-          pushHistory(nextGraph);
-          setSelectedEdgeId(newEdge.id);
+            const nextGraph = {
+              ...graph,
+              edges: [...graph.edges, newEdge],
+            };
+            pushHistory(nextGraph);
+            setSelectedEdgeId(newEdge.id);
+            setSelectedNodeIds([]);
+          }
+        }
+        setConnectingState(null);
+      }
+
+      if (
+        dragTypeRef.current === "pan" &&
+        dragStartMouseRef.current &&
+        e &&
+        typeof e.clientX === "number"
+      ) {
+        const dist = Math.hypot(
+          e.clientX - dragStartMouseRef.current.x,
+          e.clientY - dragStartMouseRef.current.y
+        );
+        if (dist < 5) {
           setSelectedNodeIds([]);
+          setSelectedEdgeId(null);
         }
       }
-      setConnectingState(null);
-    }
 
-    if (dragTypeRef.current === "pan" && dragStartMouseRef.current && e?.clientX !== undefined) {
-      const dist = Math.hypot(
-        e.clientX - dragStartMouseRef.current.x,
-        e.clientY - dragStartMouseRef.current.y
-      );
-      if (dist < 5) {
-        setSelectedNodeIds([]);
-        setSelectedEdgeId(null);
+      if (dragTypeRef.current === "marquee") {
+        setMarqueeBox(null);
       }
-    }
 
-    if (dragTypeRef.current === "marquee") {
-      setMarqueeBox(null);
-    }
-
-    if (isDraggingRef.current) {
-      if (
-        dragTypeRef.current === "node" ||
-        dragTypeRef.current === "edge-point" ||
-        dragTypeRef.current === "edge-segment"
-      ) {
-        pushHistory(graph);
+      if (isDraggingRef.current) {
+        if (
+          dragTypeRef.current === "node" ||
+          dragTypeRef.current === "edge-point" ||
+          dragTypeRef.current === "edge-segment"
+        ) {
+          pushHistory(graph);
+        }
       }
+    } finally {
       isDraggingRef.current = false;
       dragTypeRef.current = null;
       dragTargetRef.current = null;
     }
   };
+
+  const handleMouseUpRef = useRef(handleMouseUp);
+  useEffect(() => {
+    handleMouseUpRef.current = handleMouseUp;
+  });
+
+  // Global mouseup listener so releasing mouse outside canvas or over SVG elements always ends drag
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onGlobalMouseUp = (e) => {
+      if (isDraggingRef.current || connectingState) {
+        handleMouseUpRef.current(e);
+      }
+    };
+
+    window.addEventListener("mouseup", onGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mouseup", onGlobalMouseUp);
+    };
+  }, [isOpen, connectingState]);
 
   // Double click to edit text inline
   const handleNodeDoubleClick = (e, node) => {
@@ -1235,6 +1279,8 @@ export default function DiagramEditorModal({
       onClose();
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className={`drawio-modal-overlay ${editorThemeDark ? "dark" : ""}`}>
