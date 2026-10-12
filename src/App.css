@@ -2299,6 +2299,64 @@ html.dark .visual-editor-canvas-container {
     border-color: #334155;
 }
 
+/* Palette Category Tabs */
+.palette-category-tabs {
+    display: flex;
+    padding: 6px 8px;
+    gap: 4px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.drawio-modal-overlay.dark .palette-category-tabs {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+.palette-tab {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #64748b;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.drawio-modal-overlay.dark .palette-tab {
+    color: #94a3b8;
+}
+
+.palette-tab:hover {
+    color: #0f172a;
+    background: #e2e8f0;
+}
+
+.drawio-modal-overlay.dark .palette-tab:hover {
+    color: #f8fafc;
+    background: #1e293b;
+}
+
+.palette-tab.active {
+    color: #2563eb;
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    font-weight: 700;
+}
+
+.drawio-modal-overlay.dark .palette-tab.active {
+    color: #60a5fa;
+    background: #1e293b;
+    border-color: #3b82f6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 .shapes-list {
     padding: 10px;
     display: flex;

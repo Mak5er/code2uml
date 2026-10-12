@@ -356,14 +356,15 @@ const SVG = {
     },
 
     // 6. UML Initial Node (Filled circle)
-    umlInitialNode(cx, cy, r = 11, label = null) {
+    umlInitialNode(cx, cy, r = 11, label = null, options = {}) {
         let labelSvg = '';
         if (label) {
             labelSvg = `<text x="${cx - r - 8}" y="${cy}" text-anchor="end" dominant-baseline="central"
                 fill="#0f172a" font-family="${FONT_STACK}" font-size="13" font-weight="600">${this.escapeXml(label)}</text>`;
         }
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node uml-initial-node">
+        <g class="diagram-node uml-initial-node"${nodeIdAttr}>
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="#0f172a" />
             ${labelSvg}
         </g>
@@ -371,9 +372,10 @@ const SVG = {
     },
 
     // 7. UML Final Node (Bullseye: outer stroke + inner solid)
-    umlFinalNode(cx, cy, r = 13) {
+    umlFinalNode(cx, cy, r = 13, options = {}) {
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node uml-final-node">
+        <g class="diagram-node uml-final-node"${nodeIdAttr}>
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
             <circle cx="${cx}" cy="${cy}" r="${r * 0.58}" fill="#0f172a" />
         </g>
@@ -421,11 +423,12 @@ const SVG = {
     },
 
     // 9. UML Small Diamond (Decision or Merge)
-    umlDiamond(cx, cy, size = 20) {
+    umlDiamond(cx, cy, size = 20, options = {}) {
         const hs = size / 2;
         const points = `${cx},${cy - hs} ${cx + hs},${cy} ${cx},${cy + hs} ${cx - hs},${cy}`;
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node uml-diamond-node">
+        <g class="diagram-node uml-diamond-node"${nodeIdAttr}>
             <polygon points="${points}" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
         </g>
         `;
@@ -436,8 +439,9 @@ const SVG = {
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
         const textColor = options.textColor || '#0f172a';
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
         return `
-        <g class="diagram-node connector-node">
+        <g class="diagram-node connector-node"${nodeIdAttr}>
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
             <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
                 fill="${textColor}" font-family="${FONT_STACK}" font-size="12.5" font-weight="700">${label}</text>

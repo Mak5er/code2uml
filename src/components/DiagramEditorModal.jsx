@@ -82,10 +82,61 @@ export function ShapePaletteIcon({ type }) {
           <rect x="2" y="2.5" width="20" height="11" rx="5.5" />
         </svg>
       );
+    case "connector":
+      return (
+        <svg {...commonProps}>
+          <circle cx="12" cy="8" r="6" strokeWidth="1.8" />
+          <text
+            x="12"
+            y="8"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="7"
+            fontWeight="bold"
+            fill="currentColor"
+            stroke="none"
+          >
+            1
+          </text>
+        </svg>
+      );
+    case "uml-initial":
+      return (
+        <svg {...commonProps}>
+          <circle cx="12" cy="8" r="5.5" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "uml-final":
+      return (
+        <svg {...commonProps}>
+          <circle cx="12" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
+          <circle cx="12" cy="8" r="3.5" fill="currentColor" stroke="none" />
+        </svg>
+      );
     case "uml-action":
       return (
         <svg {...commonProps}>
           <rect x="2" y="2" width="20" height="12" rx="5" />
+        </svg>
+      );
+    case "uml-call":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="2" width="20" height="12" rx="5" />
+          <line x1="6.5" y1="2" x2="6.5" y2="14" strokeWidth="1.4" />
+          <line x1="17.5" y1="2" x2="17.5" y2="14" strokeWidth="1.4" />
+        </svg>
+      );
+    case "uml-diamond":
+      return (
+        <svg {...commonProps}>
+          <polygon points="12,2 20,8 12,14 4,8" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" fill="none" />
+        </svg>
+      );
+    case "uml-fork-join":
+      return (
+        <svg {...commonProps}>
+          <rect x="2" y="6" width="20" height="4" rx="1.5" fill="currentColor" stroke="none" />
         </svg>
       );
     case "structure-chart-node":
@@ -104,11 +155,19 @@ export function ShapePaletteIcon({ type }) {
   }
 }
 
-const SHAPES_PALETTE = [
+const FLOWCHART_SHAPES = [
+  {
+    type: "start",
+    title: "Початок",
+    desc: "Початковий вузол (овал за ДСТУ)",
+    defaultText: "початок",
+    w: 110,
+    h: 40,
+  },
   {
     type: "process",
     title: "Процес (Дія)",
-    desc: "Стандартна операція / присвоєння",
+    desc: "Операція / присвоєння (прямокутник)",
     defaultText: "x = a + b",
     w: 120,
     h: 42,
@@ -116,7 +175,7 @@ const SHAPES_PALETTE = [
   {
     type: "predefined",
     title: "Зумовлений процес",
-    desc: "Виклик функції за ДСТУ 19.701-90",
+    desc: "Виклик підпрограми / функції",
     defaultText: "f(n)",
     w: 130,
     h: 42,
@@ -125,7 +184,7 @@ const SHAPES_PALETTE = [
   {
     type: "rhombus",
     title: "Умова (Ромб)",
-    desc: "Розгалуження / перевірка",
+    desc: "Розгалуження if / switch",
     defaultText: "x > 0",
     w: 110,
     h: 52,
@@ -147,37 +206,95 @@ const SHAPES_PALETTE = [
     h: 42,
   },
   {
-    type: "start",
-    title: "Початок",
-    desc: "Початковий вузол (овал)",
-    defaultText: "початок",
-    w: 110,
-    h: 40,
+    type: "connector",
+    title: "З'єднувач ліній",
+    desc: "Міжсторінковий перехід (коло)",
+    defaultText: "1",
+    w: 28,
+    h: 28,
   },
   {
     type: "end",
     title: "Кінець",
-    desc: "Кінцевий вузол (овал)",
+    desc: "Кінцевий вузол (овал за ДСТУ)",
     defaultText: "кінець",
     w: 110,
     h: 40,
   },
+];
+
+const UML_SHAPES = [
+  {
+    type: "uml-initial",
+    title: "Початковий вузол",
+    desc: "Initial Node (заповнене коло)",
+    defaultText: "",
+    w: 24,
+    h: 24,
+    isUml: true,
+  },
   {
     type: "uml-action",
-    title: "UML дія",
-    desc: "Дія діяльності (скруглена)",
+    title: "Дія (Action)",
+    desc: "Стан дії (скруглений прямокутник)",
     defaultText: "action()",
     w: 120,
     h: 38,
+    isUml: true,
   },
+  {
+    type: "uml-call",
+    title: "Виклик поведінки",
+    desc: "Call Behavior Action (з подвійними лініями)",
+    defaultText: "doOperation()",
+    w: 130,
+    h: 40,
+    isUml: true,
+  },
+  {
+    type: "uml-diamond",
+    title: "Розгалуження / Злиття",
+    desc: "Decision / Merge (ромб UML)",
+    defaultText: "",
+    w: 26,
+    h: 26,
+    isUml: true,
+  },
+  {
+    type: "uml-fork-join",
+    title: "Синхронізація",
+    desc: "Fork / Join Bar (смуга паралелізму)",
+    defaultText: "",
+    w: 70,
+    h: 8,
+    isUml: true,
+  },
+  {
+    type: "uml-final",
+    title: "Кінцевий вузол",
+    desc: "Activity Final Node (буллзай)",
+    defaultText: "",
+    w: 26,
+    h: 26,
+    isUml: true,
+  },
+];
+
+const STRUCTURE_SHAPES = [
   {
     type: "structure-chart-node",
     title: "Модуль програми",
-    desc: "Блок структурної схеми",
+    desc: "Блок структурної схеми (Лаб 5)",
     defaultText: "module()",
     w: 130,
     h: 46,
   },
+];
+
+const ALL_SHAPES = [
+  ...FLOWCHART_SHAPES,
+  ...UML_SHAPES,
+  ...STRUCTURE_SHAPES,
 ];
 
 // Re-route an edge using ports or waypoints
@@ -244,6 +361,30 @@ export default function DiagramEditorModal({
   const setSelectedNodeId = useCallback((id) => {
     setSelectedNodeIds(id ? [id] : []);
   }, []);
+
+  // Palette category tab: 'flowchart' | 'uml' | 'structure'
+  const [userTab, setUserTab] = useState(null);
+  const [prevDiagramType, setPrevDiagramType] = useState(diagramType);
+  if (prevDiagramType !== diagramType) {
+    setPrevDiagramType(diagramType);
+    setUserTab(null);
+  }
+
+  const paletteCategory =
+    userTab ||
+    (diagramType === "uml"
+      ? "uml"
+      : diagramType === "structure-chart"
+        ? "structure"
+        : "flowchart");
+  const setPaletteCategory = setUserTab;
+
+  const currentShapes =
+    paletteCategory === "uml"
+      ? UML_SHAPES
+      : paletteCategory === "structure"
+        ? STRUCTURE_SHAPES
+        : FLOWCHART_SHAPES;
 
   // Marquee selection box in canvas coordinates: { x, y, w, h }
   const [marqueeBox, setMarqueeBox] = useState(null);
@@ -923,6 +1064,15 @@ export default function DiagramEditorModal({
     if (!editingNodeId) return;
     const nextNodes = graph.nodes.map((n) => {
       if (n.id !== editingNodeId) return n;
+      if (
+        n.type === "uml-initial" ||
+        n.type === "uml-final" ||
+        n.type === "uml-diamond" ||
+        n.type === "uml-fork-join" ||
+        n.type === "connector"
+      ) {
+        return { ...n, text: editingText };
+      }
       const lines = editingText.split("\n");
       const maxLen = Math.max(...lines.map((l) => l.length), 1);
       const autoW = Math.max(n.w, maxLen * 8.5 + 32);
@@ -941,6 +1091,15 @@ export default function DiagramEditorModal({
     if (!selectedNodeId) return;
     const nextNodes = graph.nodes.map((n) => {
       if (n.id !== selectedNodeId) return n;
+      if (
+        n.type === "uml-initial" ||
+        n.type === "uml-final" ||
+        n.type === "uml-diamond" ||
+        n.type === "uml-fork-join" ||
+        n.type === "connector"
+      ) {
+        return { ...n, text: newText };
+      }
       const lines = newText.split("\n");
       const maxLen = Math.max(...lines.map((l) => l.length), 1);
       const autoW = Math.max(100, maxLen * 8.5 + 30);
@@ -954,10 +1113,22 @@ export default function DiagramEditorModal({
   // Properties: Update Node Type
   const handleUpdateNodeType = (newType) => {
     if (!selectedNodeId) return;
+    const shapeDef = ALL_SHAPES.find((s) => s.type === newType);
     const nextNodes = graph.nodes.map((n) => {
       if (n.id !== selectedNodeId) return n;
-      const isPredefined = newType === "predefined";
-      return { ...n, type: newType, isPredefined };
+      const isPredefined = newType === "predefined" || newType === "uml-call";
+      const isUml = Boolean(shapeDef?.isUml || newType.startsWith("uml-") || diagramType === "uml");
+      let w = n.w;
+      let h = n.h;
+      if (shapeDef) {
+        const isSmallDef = shapeDef.w <= 70;
+        const isSmallCurr = n.w <= 70;
+        if (isSmallDef || isSmallCurr) {
+          w = shapeDef.w;
+          h = shapeDef.h;
+        }
+      }
+      return { ...n, type: newType, isPredefined, isUml, w, h };
     });
     pushHistory({ ...graph, nodes: nextNodes });
   };
@@ -1025,6 +1196,10 @@ export default function DiagramEditorModal({
       window.innerHeight / 2
     );
 
+    const isUmlNode = Boolean(
+      shapeDef.isUml || shapeDef.type.startsWith("uml-") || diagramType === "uml"
+    );
+
     const newNode = {
       id: `node_${nextIdRef.current++}`,
       type: shapeDef.type,
@@ -1033,8 +1208,8 @@ export default function DiagramEditorModal({
       w: shapeDef.w,
       h: shapeDef.h,
       text: shapeDef.defaultText,
-      isPredefined: Boolean(shapeDef.isPredefined),
-      isUml: diagramType === "uml",
+      isPredefined: Boolean(shapeDef.isPredefined || shapeDef.type === "uml-call"),
+      isUml: isUmlNode,
     };
 
     const nextGraph = {
@@ -1185,10 +1360,41 @@ export default function DiagramEditorModal({
           {/* --- Left Column: Shapes Library --- */}
           <aside className="drawio-shapes-sidebar">
             <div className="shapes-header">
-              <span>Палітра фігур</span>
+              <span>Палітра елементів</span>
             </div>
+
+            <div className="palette-category-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={paletteCategory === "flowchart"}
+                className={`palette-tab ${paletteCategory === "flowchart" ? "active" : ""}`}
+                onClick={() => setPaletteCategory("flowchart")}
+              >
+                Блок-схема
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={paletteCategory === "uml"}
+                className={`palette-tab ${paletteCategory === "uml" ? "active" : ""}`}
+                onClick={() => setPaletteCategory("uml")}
+              >
+                UML
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={paletteCategory === "structure"}
+                className={`palette-tab ${paletteCategory === "structure" ? "active" : ""}`}
+                onClick={() => setPaletteCategory("structure")}
+              >
+                Модулі
+              </button>
+            </div>
+
             <div className="shapes-list">
-              {SHAPES_PALETTE.map((shape) => (
+              {currentShapes.map((shape) => (
                 <button
                   key={shape.type}
                   className="shape-item-btn"
@@ -1499,18 +1705,94 @@ export default function DiagramEditorModal({
                             stroke={isSelected ? "#2563eb" : colors.nodeStroke}
                             strokeWidth={isSelected ? "2.5" : "1.8"}
                           />
-                        ) : node.type === "uml-action" ? (
+                        ) : node.type === "connector" ? (
+                          <circle
+                            cx={node.cx}
+                            cy={node.cy}
+                            r={node.w / 2}
+                            fill={colors.nodeFill}
+                            stroke={isSelected ? "#2563eb" : colors.nodeStroke}
+                            strokeWidth={isSelected ? "2.5" : "1.8"}
+                          />
+                        ) : node.type === "uml-initial" ? (
+                          <circle
+                            cx={node.cx}
+                            cy={node.cy}
+                            r={node.w / 2}
+                            fill={colors.nodeStroke}
+                            stroke={isSelected ? "#2563eb" : colors.nodeStroke}
+                            strokeWidth={isSelected ? "2.5" : "0"}
+                          />
+                        ) : node.type === "uml-final" ? (
+                          <g>
+                            <circle
+                              cx={node.cx}
+                              cy={node.cy}
+                              r={node.w / 2}
+                              fill={colors.nodeFill}
+                              stroke={isSelected ? "#2563eb" : colors.nodeStroke}
+                              strokeWidth={isSelected ? "2.5" : "1.8"}
+                            />
+                            <circle
+                              cx={node.cx}
+                              cy={node.cy}
+                              r={(node.w / 2) * 0.58}
+                              fill={colors.nodeStroke}
+                            />
+                          </g>
+                        ) : node.type === "uml-diamond" ? (
+                          <polygon
+                            points={`${node.cx},${y} ${node.cx + node.w / 2},${node.cy} ${node.cx},${node.cy + node.h / 2} ${node.cx - node.w / 2},${node.cy}`}
+                            fill={colors.nodeFill}
+                            stroke={isSelected ? "#2563eb" : colors.nodeStroke}
+                            strokeWidth={isSelected ? "2.5" : "1.8"}
+                          />
+                        ) : node.type === "uml-fork-join" ? (
                           <rect
                             x={x}
                             y={y}
                             width={node.w}
                             height={node.h}
-                            rx="15"
-                            ry="15"
-                            fill={colors.nodeFill}
+                            rx="2"
+                            ry="2"
+                            fill={colors.nodeStroke}
                             stroke={isSelected ? "#2563eb" : colors.nodeStroke}
-                            strokeWidth={isSelected ? "2.5" : "1.8"}
+                            strokeWidth={isSelected ? "2.5" : "1"}
                           />
+                        ) : node.type === "uml-action" || node.type === "uml-call" ? (
+                          <g>
+                            <rect
+                              x={x}
+                              y={y}
+                              width={node.w}
+                              height={node.h}
+                              rx="15"
+                              ry="15"
+                              fill={colors.nodeFill}
+                              stroke={isSelected ? "#2563eb" : colors.nodeStroke}
+                              strokeWidth={isSelected ? "2.5" : "1.8"}
+                            />
+                            {node.type === "uml-call" && (
+                              <g>
+                                <line
+                                  x1={x + 14}
+                                  y1={y}
+                                  x2={x + 14}
+                                  y2={y + node.h}
+                                  stroke={colors.nodeStroke}
+                                  strokeWidth="1.5"
+                                />
+                                <line
+                                  x1={x + node.w - 14}
+                                  y1={y}
+                                  x2={x + node.w - 14}
+                                  y2={y + node.h}
+                                  stroke={colors.nodeStroke}
+                                  strokeWidth="1.5"
+                                />
+                              </g>
+                            )}
+                          </g>
                         ) : (
                           <g>
                             <rect
@@ -1548,28 +1830,48 @@ export default function DiagramEditorModal({
                         )}
 
                         {/* Node Text lines */}
-                        {node.text
-                          .split("\n")
-                          .map((line, lineIdx, arr) => {
-                            const lineH = 17;
-                            const startY = node.cy - ((arr.length - 1) * lineH) / 2;
-                            return (
-                              <text
-                                key={lineIdx}
-                                x={node.cx}
-                                y={startY + lineIdx * lineH}
-                                textAnchor="middle"
-                                dominantBaseline="central"
-                                fontFamily="system-ui, -apple-system, sans-serif"
-                                fontSize="13.5"
-                                fontWeight="500"
-                                fill={colors.nodeText}
-                                pointerEvents="none"
-                              >
-                                {line}
-                              </text>
-                            );
-                          })}
+                        {node.text && node.text.trim().length > 0 && (
+                          node.type === "uml-initial" ||
+                          node.type === "uml-final" ||
+                          node.type === "uml-fork-join" ? (
+                            <text
+                              x={node.cx}
+                              y={node.cy + node.h / 2 + 13}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontFamily="system-ui, -apple-system, sans-serif"
+                              fontSize="12"
+                              fontWeight="600"
+                              fill={colors.nodeText}
+                              pointerEvents="none"
+                            >
+                              {node.text}
+                            </text>
+                          ) : (
+                            node.text
+                              .split("\n")
+                              .map((line, lineIdx, arr) => {
+                                const lineH = 17;
+                                const startY = node.cy - ((arr.length - 1) * lineH) / 2;
+                                return (
+                                  <text
+                                    key={lineIdx}
+                                    x={node.cx}
+                                    y={startY + lineIdx * lineH}
+                                    textAnchor="middle"
+                                    dominantBaseline="central"
+                                    fontFamily="system-ui, -apple-system, sans-serif"
+                                    fontSize="13.5"
+                                    fontWeight="500"
+                                    fill={colors.nodeText}
+                                    pointerEvents="none"
+                                  >
+                                    {line}
+                                  </text>
+                                );
+                              })
+                          )
+                        )}
 
                         {/* Selection Bounding Outline */}
                         {isSelected && (
@@ -1768,11 +2070,27 @@ export default function DiagramEditorModal({
                     value={selectedNode.type}
                     onChange={(e) => handleUpdateNodeType(e.target.value)}
                   >
-                    {SHAPES_PALETTE.map((bt) => (
-                      <option key={bt.type} value={bt.type}>
-                        {bt.title}
-                      </option>
-                    ))}
+                    <optgroup label="Блок-схема (ДСТУ 19.701-90)">
+                      {FLOWCHART_SHAPES.map((bt) => (
+                        <option key={bt.type} value={bt.type}>
+                          {bt.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="UML Activity Diagram">
+                      {UML_SHAPES.map((bt) => (
+                        <option key={bt.type} value={bt.type}>
+                          {bt.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Структурна схема (Лаб 5)">
+                      {STRUCTURE_SHAPES.map((bt) => (
+                        <option key={bt.type} value={bt.type}>
+                          {bt.title}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 

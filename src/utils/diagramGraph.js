@@ -375,26 +375,34 @@ export function extractGraphFromSvg(svgString, diagramType = "flowchart") {
 
     // Determine type
     let type = "process";
-    if (className.includes("predefined") || className.includes("uml-call")) {
+    if (className.includes("uml-call")) {
+      type = "uml-call";
+    } else if (className.includes("predefined")) {
       type = "predefined";
-    } else if (className.includes("rhombus") || gNode.querySelector("polygon")) {
-      type = "rhombus";
-    } else if (className.includes("input") || className.includes("parallelogram")) {
-      type = "input";
-    } else if (className.includes("output") || className.includes("document")) {
-      type = "output";
     } else if (className.includes("uml-initial")) {
       type = "uml-initial";
     } else if (className.includes("uml-final")) {
       type = "uml-final";
     } else if (className.includes("uml-diamond")) {
       type = "uml-diamond";
+    } else if (className.includes("uml-fork-node") || className.includes("uml-fork-join")) {
+      type = "uml-fork-join";
     } else if (className.includes("uml-action")) {
       type = "uml-action";
+    } else if (className.includes("connector-node") || className.includes("connector")) {
+      type = "connector";
+    } else if (className.includes("rhombus")) {
+      type = "rhombus";
+    } else if (className.includes("input") || className.includes("parallelogram")) {
+      type = "input";
+    } else if (className.includes("output") || className.includes("document")) {
+      type = "output";
     } else if (className.includes("structure-chart-node")) {
       type = "structure-chart-node";
     } else if (className.includes("stadium") || rawId === "start_node" || rawId === "end_node") {
       type = rawId === "end_node" ? "end" : "start";
+    } else if (gNode.querySelector("polygon")) {
+      type = diagramType === "uml" ? "uml-diamond" : "rhombus";
     }
 
     // Geometry
@@ -699,14 +707,28 @@ export function graphToSvg(graph, options = {}) {
         return SVG.parallelogram(n.cx, n.cy, n.w, n.h, n.text, opts);
       case "output":
         return SVG.document(n.cx, n.cy, n.w, n.h, n.text, opts);
+      case "connector":
+        return SVG.connector(n.cx, n.cy, n.text || "1", Math.max(12, n.w / 2), opts);
       case "uml-initial":
-        return SVG.umlInitialNode(n.cx, n.cy, 11, n.text || null);
+        return SVG.umlInitialNode(n.cx, n.cy, Math.max(11, n.w / 2), n.text || null, opts);
       case "uml-final":
-        return SVG.umlFinalNode(n.cx, n.cy, 13);
+        return SVG.umlFinalNode(n.cx, n.cy, Math.max(13, n.w / 2), opts);
       case "uml-diamond":
-        return SVG.umlDiamond(n.cx, n.cy, Math.max(n.w, 20));
+        return SVG.umlDiamond(n.cx, n.cy, Math.max(n.w, 20), opts);
       case "uml-action":
         return SVG.umlAction(n.cx, n.cy, n.w, n.h, n.text, opts);
+      case "uml-call":
+        return SVG.umlAction(n.cx, n.cy, n.w, n.h, n.text, { ...opts, isCallAction: true });
+      case "uml-fork-join": {
+        const rx = n.cx - n.w / 2;
+        const ry = n.cy - n.h / 2;
+        return `
+        <g class="diagram-node uml-fork-node" data-node-id="${n.id}">
+          <rect x="${rx}" y="${ry}" width="${n.w}" height="${n.h}" rx="2"
+            fill="${textColor}" stroke="${textColor}" stroke-width="1"/>
+        </g>
+        `;
+      }
       case "structure-chart-node": {
         const rx = n.cx - n.w / 2;
         const ry = n.cy - n.h / 2;
