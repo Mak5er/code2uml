@@ -22,6 +22,9 @@ import {
   ArrowUpFromLine,
   Hand,
   BoxSelect,
+  MousePointer2,
+  Keyboard,
+  Sparkles,
 } from "lucide-react";
 import {
   extractGraphFromSvg,
@@ -2238,22 +2241,117 @@ export default function DiagramEditorModal({
               </div>
             ) : (
               <div className="properties-empty-state">
-                <p className="empty-text">
-                  Виділіть будь-який блок або стрілку для редагування параметрів.
-                </p>
+                <div className="empty-hint-banner">
+                  <span className="empty-hint-icon">💡</span>
+                  <p className="empty-text">
+                    Виберіть блок чи стрілку для редагування їхніх параметрів.
+                  </p>
+                </div>
 
-                <div className="drawio-guide-card">
-                  <h4>⚡ Зручні дії та жести:</h4>
-                  <ul>
-                    <li><kbd>Двома пальцями</kbd> — Плавне панорамування</li>
-                    <li><kbd>Pinch / Ctrl+Колесо</kbd> — Плавний зум</li>
-                    <li><kbd>Space + Drag</kbd> — Панорамування полотна</li>
-                    <li><kbd>Drag тла</kbd> — Рамка виділення смуги/групи</li>
-                    <li><kbd>Alt+↓ / Alt+↑</kbd> — Розсунути / зсунути блоки</li>
-                    <li><kbd>Ctrl+D</kbd> — Дублювати виділені блоки</li>
-                    <li><kbd>Delete</kbd> — Видалити виділене</li>
-                    <li><kbd>2x-Click</kbd> — Швидке редагування тексту</li>
-                  </ul>
+                <div className="drawio-guide-sections">
+                  {/* Розділ 1: Навігація та тачпад */}
+                  <div className="guide-section-card">
+                    <div className="guide-section-header">
+                      <MousePointer2 size={13} className="guide-icon" />
+                      <span>Навігація та жести</span>
+                    </div>
+                    <div className="guide-shortcuts-list">
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Панорамування</span>
+                        <div className="shortcut-badges">
+                          <kbd>2 пальці</kbd>
+                          <span className="badge-sep">чи</span>
+                          <kbd>Drag</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Зум (масштаб)</span>
+                        <div className="shortcut-badges">
+                          <kbd>Колесо</kbd>
+                          <span className="badge-sep">чи</span>
+                          <kbd>Pinch</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Рамка виділення</span>
+                        <div className="shortcut-badges">
+                          <kbd>Shift</kbd>
+                          <span className="badge-plus">+</span>
+                          <kbd>Drag</kbd>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Розділ 2: Гарячі клавіші */}
+                  <div className="guide-section-card">
+                    <div className="guide-section-header">
+                      <Keyboard size={13} className="guide-icon" />
+                      <span>Гарячі клавіші</span>
+                    </div>
+                    <div className="guide-shortcuts-list">
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Дублювати</span>
+                        <div className="shortcut-badges">
+                          <kbd>Ctrl</kbd>
+                          <span className="badge-plus">+</span>
+                          <kbd>D</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Видалити</span>
+                        <div className="shortcut-badges">
+                          <kbd>Delete</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Розсунути вниз</span>
+                        <div className="shortcut-badges">
+                          <kbd>Alt</kbd>
+                          <span className="badge-plus">+</span>
+                          <kbd>↓</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Зсунути вгору</span>
+                        <div className="shortcut-badges">
+                          <kbd>Alt</kbd>
+                          <span className="badge-plus">+</span>
+                          <kbd>↑</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Скасувати / Повтор</span>
+                        <div className="shortcut-badges">
+                          <kbd>Ctrl+Z</kbd>
+                          <span className="badge-sep">/</span>
+                          <kbd>Ctrl+Y</kbd>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Розділ 3: Швидкі дії */}
+                  <div className="guide-section-card">
+                    <div className="guide-section-header">
+                      <Sparkles size={13} className="guide-icon" />
+                      <span>Швидкі дії</span>
+                    </div>
+                    <div className="guide-shortcuts-list">
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Редагувати текст</span>
+                        <div className="shortcut-badges">
+                          <kbd>2x клік</kbd>
+                        </div>
+                      </div>
+                      <div className="guide-shortcut-row">
+                        <span className="shortcut-label">Зв'язати блоки</span>
+                        <div className="shortcut-badges">
+                          <span className="hint-pill">Тягнути порт ●</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

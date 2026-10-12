@@ -3023,75 +3023,166 @@ html.dark .visual-editor-canvas-container {
 }
 
 .properties-empty-state {
-    padding: 18px 14px;
+    padding: 14px 12px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+}
+
+.empty-hint-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+}
+
+.drawio-modal-overlay.dark .empty-hint-banner {
+    background: rgba(37, 99, 235, 0.12);
+    border-color: rgba(59, 130, 246, 0.28);
+}
+
+.empty-hint-icon {
+    font-size: 14px;
+    flex-shrink: 0;
 }
 
 .empty-text {
-    font-size: 12.5px;
-    color: #64748b;
-    line-height: 1.4;
+    font-size: 11.5px;
+    color: #1e40af;
+    line-height: 1.35;
     margin: 0;
+    font-weight: 500;
 }
 
 .drawio-modal-overlay.dark .empty-text {
-    color: #94a3b8;
+    color: #93c5fd;
 }
 
-.drawio-guide-card {
+.drawio-guide-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.guide-section-card {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    padding: 12px;
-    font-size: 11.5px;
+    padding: 10px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
 }
 
-.drawio-modal-overlay.dark .drawio-guide-card {
+.drawio-modal-overlay.dark .guide-section-card {
     background: #0f172a;
     border-color: #334155;
 }
 
-.drawio-guide-card h4 {
-    margin: 0 0 8px 0;
-    font-size: 12px;
+.guide-section-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
     font-weight: 700;
     color: #2563eb;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
 }
 
-.drawio-modal-overlay.dark .drawio-guide-card h4 {
+.drawio-modal-overlay.dark .guide-section-header {
     color: #60a5fa;
 }
 
-.drawio-guide-card ul {
-    margin: 0;
-    padding-left: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    color: #475569;
+.guide-icon {
+    flex-shrink: 0;
 }
 
-.drawio-modal-overlay.dark .drawio-guide-card ul {
+.guide-shortcuts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.guide-shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.shortcut-label {
+    font-size: 11.5px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.drawio-modal-overlay.dark .shortcut-label {
     color: #94a3b8;
 }
 
-.drawio-guide-card kbd {
-    background: #e2e8f0;
-    color: #0f172a;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-    font-size: 10.5px;
-    border: 1px solid #cbd5e1;
+.shortcut-badges {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
 }
 
-.drawio-modal-overlay.dark .drawio-guide-card kbd {
-    background: #1e293b;
-    color: #f8fafc;
-    border-color: #334155;
+.shortcut-badges kbd {
+    background: #ffffff;
+    color: #1e293b;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    line-height: 1.2;
 }
+
+.drawio-modal-overlay.dark .shortcut-badges kbd {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-color: #475569;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+
+.badge-sep,
+.badge-plus {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 600;
+    padding: 0 1px;
+}
+
+.drawio-modal-overlay.dark .badge-sep,
+.drawio-modal-overlay.dark .badge-plus {
+    color: #64748b;
+}
+
+.hint-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #2563eb;
+    line-height: 1.3;
+}
+
+.drawio-modal-overlay.dark .hint-pill {
+    background: rgba(37, 99, 235, 0.2);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #93c5fd;
+}
+
 
 
 
