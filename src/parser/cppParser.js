@@ -135,6 +135,19 @@ class CppTokenizer {
     }
 }
 
+const CPP_CONTROL_KEYWORDS = new Set([
+    'if', 'else', 'while', 'for', 'do', 'switch', 'case', 'default',
+    'return', 'break', 'continue', 'goto', 'using', 'namespace',
+    'typedef', 'struct', 'class', 'public', 'private', 'protected',
+    'template', 'try', 'catch', 'throw', 'new', 'delete', 'sizeof',
+    'cin', 'cout', 'cerr', 'clog'
+]);
+
+const CPP_TYPE_WORDS = new Set([
+    'int', 'void', 'double', 'float', 'char', 'bool', 'auto', 'size_t', 'string',
+    'long', 'short', 'unsigned', 'signed', 'static', 'inline', 'const', 'constexpr', 'virtual'
+]);
+
 class CppParser {
     constructor(tokens, options = {}) {
         this.tokens = tokens.filter(t => t.type !== 'COMMENT' && t.type !== 'COMMENT_BLOCK' && t.type !== 'DIRECTIVE');
@@ -190,40 +203,66 @@ class CppParser {
     }
 
     isFunctionHeader() {
-        let idx = this.pos;
-        const typeModifiers = ['unsigned', 'signed', 'short', 'long', 'static', 'inline', 'const'];
-        while (idx < this.tokens.length && typeModifiers.includes(this.tokens[idx].value)) {
-            idx++;
-        }
-        const types = ['int', 'void', 'double', 'float', 'char', 'bool', 'auto', 'long', 'string', 'size_t'];
-        if (idx < this.tokens.length && (types.includes(this.tokens[idx].value) || this.tokens[idx].type === 'IDENTIFIER')) {
-            idx++;
-            while (idx < this.tokens.length && (this.tokens[idx].value === '*' || this.tokens[idx].value === '&')) {
-                idx++;
+        let parenIdx = -1;
+        for (let i = this.pos; i < this.tokens.length; i++) {
+            const val = this.tokens[i].value;
+            if (val === '(') {
+                parenIdx = i;
+                break;
             }
-            if (idx < this.tokens.length && this.tokens[idx].type === 'IDENTIFIER') {
-                idx++;
-                if (idx < this.tokens.length && this.tokens[idx].value === '(') {
-                    return true;
-                }
+            if (val === ';' || val === '{' || val === '}' || val === '=' || val === '<<' || val === '>>') {
+                return false;
             }
         }
+
+        if (parenIdx <= this.pos) return false;
+
+        const funcNameIdx = parenIdx - 1;
+        const nameTok = this.tokens[funcNameIdx];
+        if (!nameTok || nameTok.type !== 'IDENTIFIER' || CPP_CONTROL_KEYWORDS.has(nameTok.value)) {
+            return false;
+        }
+
+        if (funcNameIdx <= this.pos) return false;
+
+        for (let i = this.pos; i < funcNameIdx; i++) {
+            const t = this.tokens[i];
+            if (CPP_TYPE_WORDS.has(t.value) || t.value === '*' || t.value === '&' || t.value === '::' || (t.type === 'IDENTIFIER' && !CPP_CONTROL_KEYWORDS.has(t.value))) {
+                continue;
+            }
+            return false;
+        }
+
+        let depth = 1;
+        let idx = parenIdx + 1;
+        while (idx < this.tokens.length && depth > 0) {
+            if (this.tokens[idx].value === '(') depth++;
+            else if (this.tokens[idx].value === ')') depth--;
+            idx++;
+        }
+        if (depth !== 0) return false;
+
+        while (idx < this.tokens.length && ['const', 'noexcept', 'override', 'final'].includes(this.tokens[idx].value)) {
+            idx++;
+        }
+
+        if (idx < this.tokens.length && (this.tokens[idx].value === '{' || this.tokens[idx].value === ';')) {
+            return true;
+        }
+
         return false;
     }
 
     parseFunctionDefinitionOrPrototype() {
-        const typeModifiers = ['unsigned', 'signed', 'short', 'long', 'static', 'inline', 'const'];
+        let parenIdx = this.pos;
+        while (parenIdx < this.tokens.length && this.tokens[parenIdx].value !== '(') {
+            parenIdx++;
+        }
+        const funcNameIdx = parenIdx - 1;
         const returnTypeTokens = [];
-        while (this.pos < this.tokens.length && typeModifiers.includes(this.peek()?.value)) {
+        while (this.pos < funcNameIdx) {
             returnTypeTokens.push(this.consume().value);
         }
-        if (this.pos < this.tokens.length) {
-            returnTypeTokens.push(this.consume().value);
-        }
-        while (this.pos < this.tokens.length && (this.peek()?.value === '*' || this.peek()?.value === '&')) {
-            returnTypeTokens.push(this.consume().value);
-        }
-
         const nameToken = this.consume();
         const funcName = nameToken ? nameToken.value : '';
 
@@ -238,6 +277,10 @@ class CppParser {
                 if (parenDepth === 0) break;
             }
             paramTokens.push(t);
+        }
+
+        while (this.pos < this.tokens.length && ['const', 'noexcept', 'override', 'final'].includes(this.peek()?.value)) {
+            this.consume();
         }
 
         // Prototype declaration: ends with ';'
@@ -309,13 +352,15 @@ class CppParser {
                 if (!s) return;
                 const nodeId = `${prefix}_${callerName}_${idx}`;
                 if (!s.id) s.id = nodeId;
-                const textToCheck = `${s.text || ''} ${s.raw || ''} ${s.expr || ''} ${s.value || ''}`;
+                if (!s.calledFunctions) s.calledFunctions = new Set();
+                const textToCheck = `${s.text || ''} ${s.raw || ''} ${s.expr || ''} ${s.value || ''} ${s.condition || ''} ${s.init || ''} ${s.update || ''}`;
                 for (const fn of allFuncNames) {
-                    const callRegex = new RegExp(`\\b${fn}\\s*\\(`, 'i');
+                    const callRegex = new RegExp(`\\b${fn}\\s*\\(`);
                     if (callRegex.test(textToCheck)) {
                         s.isFunctionCall = true;
                         s.isPredefined = true;
                         s.calledFunction = fn;
+                        s.calledFunctions.add(fn);
                         if (fn === callerName) {
                             s.isRecursive = true;
                         }
@@ -343,8 +388,12 @@ class CppParser {
             const collectCalls = (stmtsList) => {
                 if (!Array.isArray(stmtsList)) return;
                 stmtsList.forEach(s => {
-                    if (s && s.isFunctionCall && s.calledFunction) {
-                        calledSet.add(s.calledFunction);
+                    if (s) {
+                        if (s.calledFunctions && s.calledFunctions.size > 0) {
+                            s.calledFunctions.forEach(fn => calledSet.add(fn));
+                        } else if (s.isFunctionCall && s.calledFunction) {
+                            calledSet.add(s.calledFunction);
+                        }
                     }
                     if (s && s.thenBranch) collectCalls(s.thenBranch);
                     if (s && s.elseBranch) collectCalls(s.elseBranch);
@@ -472,15 +521,25 @@ class CppParser {
             return null;
         }
 
-        const typeModifiers = ['unsigned', 'signed', 'short', 'static'];
-        while (this.pos < this.tokens.length && typeModifiers.includes(this.peek()?.value)) {
-            this.consume();
+        // Variable declarations (e.g. int x, long long a1 = ..., unsigned int n, etc.)
+        let scanIdx = this.pos;
+        let typeCount = 0;
+        while (scanIdx < this.tokens.length && CPP_TYPE_WORDS.has(this.tokens[scanIdx].value)) {
+            typeCount++;
+            scanIdx++;
         }
-
-        const types = ['int', 'double', 'float', 'char', 'bool', 'long', 'string', 'auto', 'size_t'];
-        const currentToken = this.peek();
-        if (currentToken && types.includes(currentToken.value)) {
-            return this.parseDeclaration();
+        while (scanIdx < this.tokens.length && (this.tokens[scanIdx].value === '*' || this.tokens[scanIdx].value === '&')) {
+            typeCount++;
+            scanIdx++;
+        }
+        if (typeCount > 0 && scanIdx < this.tokens.length) {
+            const nameTok = this.tokens[scanIdx];
+            if (nameTok && nameTok.type === 'IDENTIFIER' && !CPP_CONTROL_KEYWORDS.has(nameTok.value)) {
+                const afterTok = this.tokens[scanIdx + 1];
+                if (afterTok && ['=', ',', ';', '['].includes(afterTok.value)) {
+                    return this.parseDeclaration();
+                }
+            }
         }
 
         if (t.value === 'getline' || (t.value === 'std' && this.peek(1)?.value === '::' && this.peek(2)?.value === 'getline')) {
@@ -499,7 +558,15 @@ class CppParser {
     }
 
     parseDeclaration() {
-        const typeToken = this.consume();
+        const typeTokens = [];
+        while (this.pos < this.tokens.length && CPP_TYPE_WORDS.has(this.peek()?.value)) {
+            typeTokens.push(this.consume().value);
+        }
+        while (this.pos < this.tokens.length && (this.peek()?.value === '*' || this.peek()?.value === '&')) {
+            typeTokens.push(this.consume().value);
+        }
+        const fullType = typeTokens.join(' ');
+
         const declTokens = [];
         while (this.pos < this.tokens.length && !this.match('SYMBOL', ';')) {
             declTokens.push(this.consume());
@@ -539,9 +606,9 @@ class CppParser {
                 const vars = declTokens.filter(t => t.type === 'IDENTIFIER').map(t => t.value);
                 return {
                     type: 'process',
-                    raw: `${typeToken.value} ${vars.join(', ')};`,
-                    text: `${typeToken.value} ${vars.join(', ')}`,
-                    simplifiedText: `${typeToken.value} ${vars.join(', ')}`
+                    raw: `${fullType} ${vars.join(', ')};`,
+                    text: `${fullType} ${vars.join(', ')}`,
+                    simplifiedText: `${fullType} ${vars.join(', ')}`
                 };
             }
             return null;

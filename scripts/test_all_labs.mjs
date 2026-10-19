@@ -233,7 +233,7 @@ double p(const double x) {
     },
     {
         id: 'lab5_4_variant0',
-        name: 'Lab 5.4 Variant 0 (Iterative S0 and recursive S1 sums)',
+        name: 'Lab 5.4 Variant 0 (Official Textbook Example with 5 functions: S0 iterative, S1-S4 recursive)',
         code: `#include <iostream>
 #include <cmath>
 using namespace std;
@@ -252,33 +252,190 @@ double S1(const int K, const int N, const int i) {
         return sin(1. * i) + S1(K, N, i + 1);
 }
 
+double S2(const int K, const int N, const int i) {
+    if (i < K)
+        return 0;
+    else
+        return sin(1. * i) + S2(K, N, i - 1);
+}
+
+double S3(const int K, const int N, const int i, double t) {
+    t = t + sin(1. * i);
+    if (i >= N)
+        return t;
+    else
+        return S3(K, N, i + 1, t);
+}
+
+double S4(const int K, const int N, const int i, double t) {
+    t = t + sin(1. * i);
+    if (i <= K)
+        return t;
+    else
+        return S4(K, N, i - 1, t);
+}
+
 int main() {
     int K, N;
     cout << "K = "; cin >> K;
     cout << "N = "; cin >> N;
 
-    cout << "S0 = " << S0(K, N) << endl;
-    cout << "S1 = " << S1(K, N, K) << endl;
+    cout << "(iter)        S0 = " << S0(K, N)       << endl;
+    cout << "(rec up ++)   S1 = " << S1(K, N, K)    << endl;
+    cout << "(rec up --)   S2 = " << S2(K, N, N)    << endl;
+    cout << "(rec down ++) S3 = " << S3(K, N, K, 0) << endl;
+    cout << "(rec down --) S4 = " << S4(K, N, N, 0) << endl;
     return 0;
 }`
     },
     {
-        id: 'lab5_5_variant0',
-        name: 'Lab 5.5 Variant 0 (Recursive factorial with recursion loop)',
+        id: 'lab5_5_variant1_digits',
+        name: 'Lab 5.5 Variant 1 (Sum of digits with level and reference depth parameter)',
         code: `#include <iostream>
 using namespace std;
 
-int f(int n) {
-    if (n > 1)
-        return n * f(n - 1);
-    return 1;
+int f(int n, int level, int &depth) {
+    if (level > depth)
+        depth = level;
+    cout << "level = " << level << endl;
+    if (n == 0)
+        return 0;
+    else
+        return (n % 10) + f(n / 10, level + 1, depth);
 }
 
 int main() {
-    int k;
-    cout << "k = "; cin >> k;
-    int P = f(k);
-    cout << "k! = " << P << endl;
+    int n;
+    cout << "n = "; cin >> n;
+    int depth = 0;
+    int s = f(n, 1, depth);
+    cout << "Sum = " << s << endl;
+    cout << "Depth = " << depth << endl;
+    return 0;
+}`
+    },
+    {
+        id: 'lab5_5_variant3_fibonacci',
+        name: 'Lab 5.5 Variant 3 (Fibonacci with multi-call and recursion depth)',
+        code: `#include <iostream>
+using namespace std;
+
+int fib(int n, int level, int &depth) {
+    if (level > depth)
+        depth = level;
+    cout << "level = " << level << endl;
+    if (n <= 0)
+        return 0;
+    if (n == 1)
+        return 1;
+    return fib(n - 1, level + 1, depth) + fib(n - 2, level + 1, depth);
+}
+
+int main() {
+    int n;
+    cout << "n = "; cin >> n;
+    int depth = 0;
+    int res = fib(n, 1, depth);
+    cout << "F(" << n << ") = " << res << endl;
+    cout << "depth = " << depth << endl;
+    return 0;
+}`
+    },
+    {
+        id: 'lab5_5_variant4_ackermann',
+        name: 'Lab 5.5 Variant 4 (Ackermann function with nested recursion)',
+        code: `#include <iostream>
+using namespace std;
+
+int A(int m, int n, int level, int &depth) {
+    if (level > depth)
+        depth = level;
+    if (m == 0)
+        return n + 1;
+    else if (n == 0)
+        return A(m - 1, 1, level + 1, depth);
+    else
+        return A(m - 1, A(m, n - 1, level + 1, depth), level + 1, depth);
+}
+
+int main() {
+    int m, n;
+    cout << "m = "; cin >> m;
+    cout << "n = "; cin >> n;
+    int depth = 0;
+    int res = A(m, n, 1, depth);
+    cout << "A(" << m << ", " << n << ") = " << res << endl;
+    cout << "depth = " << depth << endl;
+    return 0;
+}`
+    },
+    {
+        id: 'karatsuba_complex',
+        name: 'Karatsuba Complex Multiplication (Multi-word types, recursion, and multiple subroutines)',
+        code: `#include <iostream>
+#include <cmath>
+#include <algorithm>
+#include <string>
+using namespace std;
+int max_depth = 0;
+
+// 1. РЕКУРСИВНА ФУНКЦІЯ КАРАЦУБИ ДЛЯ МНОЖЕННЯ ДВОХ ЦІЛИХ ЧИСЕЛ
+long long karatsuba(long long X, long long Y, int level) {
+    if (level > max_depth) {
+        max_depth = level;
+    }
+
+    if (abs(X) < 10 || abs(Y) < 10) {
+        return X * Y;
+    }
+
+    int n = max(to_string(abs(X)).length(), to_string(abs(Y)).length());
+    int half = n / 2;
+
+    long long t = pow(10, half);
+
+    long long a1 = X / t;
+    long long a0 = X % t;
+    long long b1 = Y / t;
+    long long b0 = Y % t;
+
+    long long D0 = karatsuba(a0, b0, level + 1);
+    long long D1 = karatsuba(a1, b1, level + 1);
+    long long D2 = karatsuba(a1 + a0, b1 + b0, level + 1);
+
+    return D1 * t * t + (D2 - D0 - D1) * t + D0;
+}
+
+// 2. ФУНКЦІЯ ДЛЯ КОМПЛЕКСНОГО МНОЖЕННЯ
+void multiplyComplex(long long a, long long b, long long c, long long d) {
+    max_depth = 0;
+    long long ac = karatsuba(a, c, 0);
+    long long bd = karatsuba(b, d, 0);
+    long long ad = karatsuba(a, d, 0);
+    long long bc = karatsuba(b, c, 0);
+
+    long long r = ac - bd;
+    long long s = ad + bc;
+
+    cout << "\n--- РЕЗУЛЬТАТ ---" << endl;
+    cout << "r = " << r << endl;
+    cout << "s = " << s << endl;
+    cout << "Глибина рекурсії = " << max_depth << endl;
+}
+
+int main() {
+    long long a, b, c, d;
+    cout << "Введіть дійсні та уявні частини чисел." << endl;
+    cout << "Перше число (a + ib):" << endl;
+    cout << "a = "; cin >> a;
+    cout << "b = "; cin >> b;
+
+    cout << "Друге число (c + id):" << endl;
+    cout << "c = "; cin >> c;
+    cout << "d = "; cin >> d;
+
+    multiplyComplex(a, b, c, d);
+
     return 0;
 }`
     }
