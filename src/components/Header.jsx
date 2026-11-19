@@ -13,6 +13,7 @@ export default function Header({
   functions = [],
   selectedFunction = "main",
   onSelectFunction,
+  isMultiFile = false,
   expressionMode = "cpp",
   onOpenSettings,
 }) {
@@ -36,7 +37,7 @@ export default function Header({
           <span>Згенерувати</span>
         </button>
 
-        {functions && functions.length > 1 && (
+        {functions && (functions.length > 1 || (isMultiFile && functions.length >= 1)) && (
           <div className="function-selector-wrapper">
             <span className="func-select-label">Функція:</span>
             <select
@@ -47,11 +48,15 @@ export default function Header({
               }
               title="Виберіть функцію для побудови діаграми"
             >
-              {functions.map((fn) => (
-                <option key={fn.name} value={fn.name}>
-                  {fn.name}() {fn.isMain ? "(головна)" : ""}
-                </option>
-              ))}
+              {functions.map((fn, idx) => {
+                const value = fn.label || (fn.file && isMultiFile ? `${fn.file} :: ${fn.qualifiedSignature || fn.signature || `${fn.name}()`}` : (fn.qualifiedSignature || fn.qualifiedName || fn.name));
+                const displayBase = fn.label || `${fn.qualifiedName || fn.name}()`;
+                return (
+                  <option key={`${value}__${idx}`} value={value}>
+                    {displayBase}{fn.isMain ? " (головна)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}

@@ -136,7 +136,101 @@ function replacePowCalls(s) {
     return s;
 }
 
-export function toMathExpression(str) {
+const NON_OPERAND_LEFT_WORDS = new Set([
+    'void', 'char', 'short', 'int', 'long', 'float', 'double', 'bool', 'auto',
+    'size_t', 'string', 'signed', 'unsigned', 'const', 'constexpr', 'volatile',
+    'static', 'inline', 'extern', 'struct', 'class', 'typename', 'wchar_t',
+    'char8_t', 'char16_t', 'char32_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t',
+    'return', 'case', 'delete', 'new', 'throw', 'sizeof', 'typeof', 'decltype'
+]);
+
+function maskStringAndCharLiterals(str) {
+    const literals = [];
+    let masked = '';
+    let i = 0;
+    while (i < str.length) {
+        const ch = str[i];
+        if (ch === '"' || ch === "'") {
+            const quote = ch;
+            const start = i;
+            i++;
+            while (i < str.length) {
+                if (str[i] === '\\' && i + 1 < str.length) {
+                    i += 2;
+                    continue;
+                }
+                if (str[i] === quote) {
+                    i++;
+                    break;
+                }
+                i++;
+            }
+            const idx = literals.length;
+            literals.push(str.slice(start, i));
+            masked += `@@LIT_${idx}@@`;
+        } else {
+            masked += ch;
+            i++;
+        }
+    }
+    return { masked, literals };
+}
+
+function unmaskLiterals(str, literals) {
+    if (!literals || literals.length === 0) return str;
+    return str.replace(/@@LIT_(\d+)@@/g, (m, idxStr) => {
+        const idx = Number(idxStr);
+        return Number.isInteger(idx) && idx >= 0 && idx < literals.length ? literals[idx] : m;
+    });
+}
+
+function replaceBinaryMultiply(str) {
+    let out = '';
+    for (let i = 0; i < str.length; i++) {
+        if (str[i] !== '*') {
+            out += str[i];
+            continue;
+        }
+        // Look back across whitespace for the left token/character
+        let li = i - 1;
+        while (li >= 0 && /\s/.test(str[li])) li--;
+        const leftCh = li >= 0 ? str[li] : '';
+
+        // Look ahead across whitespace for the right character
+        let ri = i + 1;
+        while (ri < str.length && /\s/.test(str[ri])) ri++;
+        const rightCh = ri < str.length ? str[ri] : '';
+
+        // Compound *=, end-of-expression, closing delimiters, or adjacent ** pointer
+        if (!rightCh || str[i + 1] === '=' || rightCh === '=' || [')', ']', '}', ',', ';', ':'].includes(rightCh)) {
+            out += '*';
+            continue;
+        }
+        if (str[i + 1] === '*' || leftCh === '*') {
+            out += '*';
+            continue;
+        }
+
+        // Left side must end with an operand: digit, ), ], or non-type/non-keyword identifier
+        let leftIsOperand = false;
+        if (/[0-9)\]]/.test(leftCh)) {
+            leftIsOperand = true;
+        } else if (/[a-zA-Z_]/.test(leftCh)) {
+            let wordStart = li;
+            while (wordStart > 0 && /[a-zA-Z0-9_]/.test(str[wordStart - 1])) wordStart--;
+            const leftWord = str.slice(wordStart, li + 1);
+            if (!NON_OPERAND_LEFT_WORDS.has(leftWord)) {
+                leftIsOperand = true;
+            }
+        }
+
+        out += leftIsOperand ? '·' : '*';
+    }
+    return out;
+}
+
+function transformMathCore(str) {
     if (!str) return '';
     let s = String(str).trim();
 
@@ -166,12 +260,12 @@ export function toMathExpression(str) {
         if (/^[a-zA-Z0-9_]+$/.test(trimmed)) {
             return `√${trimmed}`;
         }
-        return `√(${toMathExpression(trimmed)})`;
+        return `√(${transformMathCore(trimmed)})`;
     });
 
     // 7. abs / fabs with balanced parens
     s = replaceBalancedCalls(s, ['abs', 'fabs'], (fn, inner) => {
-        return `|${toMathExpression(inner.trim())}|`;
+        return `|${transformMathCore(inner.trim())}|`;
     });
 
     // 7b. exp(...) with balanced parens -> eˣ or e^(...)
@@ -180,7 +274,7 @@ export function toMathExpression(str) {
         if (/^[a-zA-Z0-9_]+$/.test(trimmed)) {
             return `e${toSuperscript(trimmed)}`;
         }
-        return `e^(${toMathExpression(trimmed)})`;
+        return `e^(${transformMathCore(trimmed)})`;
     });
 
     // 8. C++ math logs & trig
@@ -205,10 +299,17 @@ export function toMathExpression(str) {
     s = s.replace(/>=/g, '≥');
     s = s.replace(/==/g, '=');
 
-    // 12. Multiplication sign * -> ·
-    s = s.replace(/\*/g, '·');
+    // 12. Binary multiplication sign * -> · (preserving unary *t, pointer char*, *=)
+    s = replaceBinaryMultiply(s);
 
     return s;
+}
+
+export function toMathExpression(str) {
+    if (!str) return '';
+    const { masked, literals } = maskStringAndCharLiterals(String(str).trim());
+    const transformed = transformMathCore(masked);
+    return unmaskLiterals(transformed, literals);
 }
 
 export function parseFraction(expr) {
@@ -240,6 +341,19 @@ export function parseFraction(expr) {
 
     for (let i = 0; i < s.length; i++) {
         const c = s[i];
+        if (c === '"' || c === "'") {
+            const quote = c;
+            i++;
+            while (i < s.length) {
+                if (s[i] === '\\' && i + 1 < s.length) {
+                    i += 2;
+                    continue;
+                }
+                if (s[i] === quote) break;
+                i++;
+            }
+            continue;
+        }
         if (c === '(') parenDepth++;
         else if (c === ')') parenDepth--;
         else if (parenDepth === 0 && c === '/') {

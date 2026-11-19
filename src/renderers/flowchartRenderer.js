@@ -57,9 +57,9 @@ class FlowchartRenderer {
     return txt;
   }
 
-  getConditionText(cond) {
+  getConditionText(cond, isPreprocessor = false) {
     if (!cond) return "";
-    if (this.options.expressionMode === "math") {
+    if (!isPreprocessor && this.options.expressionMode === "math") {
       return toMathExpression(cond);
     }
     return cond;
@@ -90,7 +90,7 @@ class FlowchartRenderer {
     return null;
   }
 
-  calcActionDimensions(node, isIO = false, maxChars = 34) {
+  calcActionDimensions(node, isIO = false, maxChars = 34, isPredefined = false) {
     if (typeof node === "object" && node !== null) {
       if (
         this.options.expressionMode === "math" &&
@@ -100,7 +100,7 @@ class FlowchartRenderer {
         if (frac) {
           const charW = 8.2;
           const sep = (frac.target === 'return' || /[-+*/]?=$/.test(frac.target)) ? ' ' : ' = ';
-          const formattedTarget = frac.target ? frac.target.replace(/\*/g, '·') : '';
+          const formattedTarget = frac.target || '';
           const leftPart = formattedTarget ? `${formattedTarget}${sep}${frac.prefix}` : frac.prefix;
           const leftW = leftPart ? leftPart.length * charW : 0;
           const rightW = frac.suffix ? frac.suffix.length * charW : 0;
@@ -108,11 +108,12 @@ class FlowchartRenderer {
           const denW = frac.denText.length * 8.0;
           const barW = Math.max(numW, denW) + 16;
           const totalW = leftW + (leftW > 0 ? 6 : 0) + barW + (rightW > 0 ? 6 : 0) + rightW;
+          const extraInsetPad = isPredefined ? 24 : 0;
           return {
             isFraction: true,
             frac,
             lines: [],
-            w: Math.max(isIO ? 100 : 124, Math.ceil(totalW + 36)),
+            w: Math.max(isIO ? 110 : 124, Math.ceil(totalW + 36 + extraInsetPad)),
             h: 58,
           };
         }
@@ -121,17 +122,24 @@ class FlowchartRenderer {
     const text = this.getNodeText(node);
     const lines = SVG.splitText(text, maxChars);
     const maxL = Math.max(...lines.map((l) => l.length), 0);
-    const w = Math.max(isIO ? 100 : 120, maxL * 8.5 + (isIO ? 44 : 28));
+    const hPad = isIO ? 56 : isPredefined ? 54 : 32;
+    const w = Math.max(isIO ? 110 : 124, Math.ceil(maxL * 8.5 + hPad));
     const h = Math.max(36, lines.length * 18 + 14);
     return { isFraction: false, lines, w, h };
   }
 
-  calcRhombusDimensions(conditionText) {
-    const text = this.getConditionText(conditionText);
-    const lines = SVG.splitText(text, 26);
-    const maxL = Math.max(...lines.map((l) => l.length), 0);
-    const w = Math.max(110, maxL * 8.8 + 48);
-    const h = Math.max(50, lines.length * 20 + 26);
+  calcRhombusDimensions(conditionText, isPreprocessor = false) {
+    const text = this.getConditionText(conditionText, isPreprocessor);
+    const lines = SVG.splitText(text, 24);
+    const maxL = Math.max(...lines.map((l) => l.length), 1);
+    const textW = maxL * 8.4;
+    const fontSize = 13;
+    const lineHeight = 17;
+    const textH = (lines.length - 1) * lineHeight + fontSize;
+    const dy = textH / 2 + 3;
+    const h = Math.max(52, Math.ceil(lines.length * 26 + 30), Math.ceil(dy / 0.275));
+    const usableRatio = Math.max(0.42, 1 - (2 * dy) / h);
+    const w = Math.max(120, Math.ceil((textW + 32) / usableRatio));
     return { lines, w, h };
   }
 
@@ -140,15 +148,17 @@ class FlowchartRenderer {
       const isSubroutine = Boolean(this.ast.functionName && this.ast.functionName !== "main");
       const defaultText = isSubroutine ? (this.ast.functionSignature || this.ast.functionName) : "початок";
       const text = this.options.startText || defaultText;
-      const w = Math.max(110, text.length * 8.8 + 36);
-      const h = 42;
+      const lines = SVG.splitText(text, 36);
+      const maxL = Math.max(...lines.map((l) => l.length), 1);
+      const w = Math.max(114, Math.ceil(maxL * 8.8 + 44));
+      const h = Math.max(42, lines.length * 18 + 18);
       return {
         w,
         h,
         cx: w / 2,
         render: (x, y) => {
           this.bounds.addRect(x, y, w, h);
-          this.elements.push(SVG.stadium(x + w / 2, y + h / 2, w, h, text, { nodeId: 'start_node' }));
+          this.elements.push(SVG.stadium(x + w / 2, y + h / 2, w, h, lines, { nodeId: 'start_node', maxChars: 36 }));
         },
       };
     }
@@ -167,12 +177,13 @@ class FlowchartRenderer {
     }
 
     const isIO = type === "input" || type === "output";
-    const dim = this.calcActionDimensions(node, isIO);
     const isPredefined = Boolean(
       node &&
+      !isIO &&
       (node.isPredefined || node.isFunctionCall) &&
       this.options.functionCallStyle !== "process"
     );
+    const dim = this.calcActionDimensions(node, isIO, 34, isPredefined);
     return {
       w: dim.w,
       h: dim.h,
@@ -218,7 +229,7 @@ class FlowchartRenderer {
   }
 
   layoutSeq(items) {
-    const valid = items.filter(Boolean);
+    const valid = items.filter((item) => item && (item.w > 0 || item.h > 0));
     if (!valid.length) return { w: 0, h: 0, cx: 0, render: () => {} };
     const gap = this.options.nodeGap;
     const cx = Math.max(...valid.map((item) => item.cx));
@@ -269,6 +280,7 @@ class FlowchartRenderer {
     while (cur && cur.type === "if") {
       conditions.push({
         condition: cur.condition,
+        isPreprocessor: Boolean(cur.isPreprocessor),
         thenBranch: cur.thenBranch || [],
       });
       if (
@@ -300,7 +312,7 @@ class FlowchartRenderer {
 
   layoutSingleIf(node) {
     const condText = node.condition;
-    const rhDim = this.calcRhombusDimensions(condText);
+    const rhDim = this.calcRhombusDimensions(condText, Boolean(node.isPreprocessor));
     const dw = rhDim.w;
     const dh = rhDim.h;
 
@@ -435,7 +447,7 @@ class FlowchartRenderer {
     const plusLabel = this.options.branchLabels === "yes_no" ? "Так" : "+";
     const minusLabel = this.options.branchLabels === "yes_no" ? "Ні" : "−";
 
-    const rhDims = chain.conditions.map((c) => this.calcRhombusDimensions(c.condition));
+    const rhDims = chain.conditions.map((c) => this.calcRhombusDimensions(c.condition, Boolean(c.isPreprocessor)));
     const thenLayouts = chain.conditions.map((c) => this.layoutNodeList(c.thenBranch || []));
     const hasElse = chain.elseBranch && chain.elseBranch.length > 0;
     const elseLayout = hasElse
@@ -1098,11 +1110,12 @@ class FlowchartRenderer {
     const svgContent = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}" width="${vb.width}" height="${vb.height}">
             ${SVG.createDefs()}
+            ${SVG.bgRect(vb)}
             <g id="flowchart-layer">
                 ${this.elements.join("\n")}
             </g>
         </svg>
-    `;
+    `.trim();
 
     return {
       svg: svgContent,

@@ -4,19 +4,32 @@
  */
 
 const FONT_STACK = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'DejaVu Sans', 'Apple Symbols', sans-serif";
+const MONO_FONT_STACK = "'Consolas', 'Menlo', 'Monaco', 'DejaVu Sans Mono', 'Courier New', monospace";
 
 const SVG = {
+    FONT_STACK,
+    MONO_FONT_STACK,
+
     createDefs() {
         return `
         <defs>
-            <!-- Crisp Engineering Arrow Head -->
+            <!-- Crisp Engineering Arrow Heads -->
             <marker id="arrow-flow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 1 2 L 10 6 L 1 10 z" fill="#1e293b" />
             </marker>
             <marker id="arrow-uml" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
                 <path d="M 1 2 L 10 6 L 1 10 z" fill="#1e293b" />
             </marker>
-            <!-- Drop shadow for diagram cards -->
+            <marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#0f172a" />
+            </marker>
+            <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#1d4ed8" />
+            </marker>
+            <marker id="dot-black" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5">
+                <circle cx="4" cy="4" r="3.2" fill="#0f172a" />
+            </marker>
+            <!-- Optional soft drop shadow for interactive editor nodes -->
             <filter id="soft-shadow" x="-5%" y="-5%" width="110%" height="110%">
                 <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.04"/>
             </filter>
@@ -24,16 +37,24 @@ const SVG = {
         `;
     },
 
+    bgRect(viewBox, fill = '#FFFFFF') {
+        const x = viewBox?.x ?? 0;
+        const y = viewBox?.y ?? 0;
+        const width = viewBox?.width ?? 400;
+        const height = viewBox?.height ?? 400;
+        return `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" data-role="svg-background"/>`;
+    },
+
     splitText(str, maxChars = 38) {
         if (!str) return [''];
         if (Array.isArray(str)) return str;
         const raw = String(str).trim();
-        if (raw.length <= maxChars) return [raw];
+        if (raw.length <= maxChars + 2) return [raw];
 
         const parts = [];
         let remaining = raw;
 
-        while (remaining.length > maxChars) {
+        while (remaining.length > maxChars + 2) {
             const windowSize = Math.min(remaining.length, maxChars + 10);
             const searchSub = remaining.slice(0, windowSize);
             let splitIdx = -1;
@@ -93,6 +114,13 @@ const SVG = {
                 splitIdx = maxChars;
             }
 
+            // Avoid leaving a tiny 1-3 char orphan fragment (e.g. trailing quote or paren)
+            if (remaining.length - splitIdx <= 3) {
+                parts.push(remaining);
+                remaining = '';
+                break;
+            }
+
             parts.push(remaining.slice(0, splitIdx).trim());
             remaining = remaining.slice(splitIdx).trim();
         }
@@ -138,17 +166,20 @@ const SVG = {
         const r = height / 2;
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         const textSvg = this.renderTextLines(cx, cy, text, {
             textColor: options.textColor || '#0f172a',
             weight: '600',
             size: 13.5,
-            letterSpacing: '0.2px'
+            letterSpacing: '0.2px',
+            maxChars: options.maxChars || 36
         });
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
 
         return `
-        <g class="diagram-node stadium-node">
+        <g class="diagram-node stadium-node"${nodeIdAttr}>
             <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${r}" ry="${r}"
-                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8"${filterAttr}/>
             ${textSvg}
         </g>
         `;
@@ -168,15 +199,17 @@ const SVG = {
 
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         const textSvg = this.renderTextLines(cx, cy, text, {
             textColor: options.textColor || '#0f172a',
             size: 13.5
         });
+        const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
 
         const points = `${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`;
         return `
-        <g class="diagram-node input-node">
-            <polygon points="${points}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="round" filter="url(#soft-shadow)"/>
+        <g class="diagram-node input-node"${nodeIdAttr}>
+            <polygon points="${points}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
             ${textSvg}
         </g>
         `;
@@ -188,6 +221,7 @@ const SVG = {
         const y = cy - height / 2;
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         const textSvg = this.renderTextLines(cx, cy, text, {
             textColor: options.textColor || '#0f172a',
             size: 13.5
@@ -195,8 +229,8 @@ const SVG = {
 
         return `
         <g class="diagram-node process-node"${options.nodeId ? ` data-node-id="${options.nodeId}"` : ''}>
-            <rect x="${x}" y="${y}" width="${width}" height="${height}"
-                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+            <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="0" ry="0"
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
             ${textSvg}
         </g>
         `;
@@ -209,6 +243,7 @@ const SVG = {
         const inset = options.inset || 10;
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         const textSvg = this.renderTextLines(cx, cy, text, {
             textColor: options.textColor || '#0f172a',
             size: 13.5
@@ -217,8 +252,8 @@ const SVG = {
 
         return `
         <g class="diagram-node process-node predefined-process-node"${nodeIdAttr}>
-            <rect x="${x}" y="${y}" width="${width}" height="${height}"
-                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+            <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="0" ry="0"
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
             <line x1="${x + inset}" y1="${y}" x2="${x + inset}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
             <line x1="${x + width - inset}" y1="${y}" x2="${x + width - inset}" y2="${y + height}" stroke="${strokeColor}" stroke-width="1.5" />
             ${textSvg}
@@ -238,7 +273,7 @@ const SVG = {
         const prefix = options.prefix || '';
         const suffix = options.suffix || '';
         const sep = (target === 'return' || /[-+*/]?=$/.test(target)) ? ' ' : ' = ';
-        const formattedTarget = target ? target.replace(/\*/g, '·') : '';
+        const formattedTarget = target || '';
         const leftText = formattedTarget ? `${formattedTarget}${sep}${prefix}` : prefix;
         const leftW = leftText ? leftText.length * charW : 0;
         const rightW = suffix ? suffix.length * charW : 0;
@@ -287,11 +322,12 @@ const SVG = {
             </g>
         ` : '';
         const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
 
         return `
         <g class="diagram-node process-node fraction-node${options.isPredefined ? ' predefined-process-node' : ''}"${nodeIdAttr}>
             <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${ry}"
-                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
             ${predefinedLines}
             ${contentSvg}
         </g>
@@ -307,6 +343,7 @@ const SVG = {
 
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         const textSvg = this.renderTextLines(cx, cy, text, {
             textColor: options.textColor || '#0f172a',
             size: 13,
@@ -316,14 +353,14 @@ const SVG = {
         return `
         <g class="diagram-node condition-node">
             <polygon points="${pTop} ${pRight} ${pBottom} ${pLeft}"
-                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
             ${textSvg}
         </g>
         `;
     },
 
     // 5. Document Symbol (Output: cout << y)
-    // Smooth S-curve at bottom matching Slide 2 & 7
+    // Smooth S-curve at bottom matching ДСТУ ГОСТ 19.701-90
     document(cx, cy, width, height, text, options = {}) {
         const x = cx - width / 2;
         const y = cy - height / 2;
@@ -342,6 +379,7 @@ const SVG = {
 
         const strokeColor = options.stroke || '#1e293b';
         const fillColor = options.fill || '#ffffff';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         const textSvg = this.renderTextLines(cx, cy - 3, text, {
             textColor: options.textColor || '#0f172a',
             size: 13.5
@@ -349,7 +387,7 @@ const SVG = {
 
         return `
         <g class="diagram-node document-node">
-            <path d="${d}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="round" filter="url(#soft-shadow)"/>
+            <path d="${d}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
             ${textSvg}
         </g>
         `;
@@ -411,11 +449,12 @@ const SVG = {
             </g>
         ` : '';
         const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
 
         return `
         <g class="diagram-node uml-action-node${options.isCallAction ? ' uml-call-node' : ''}"${nodeIdAttr}>
             <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}"
-                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+                fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8"${filterAttr}/>
             ${callBars}
             ${textSvg}
         </g>
@@ -427,9 +466,10 @@ const SVG = {
         const hs = size / 2;
         const points = `${cx},${cy - hs} ${cx + hs},${cy} ${cx},${cy + hs} ${cx - hs},${cy}`;
         const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         return `
         <g class="diagram-node uml-diamond-node"${nodeIdAttr}>
-            <polygon points="${points}" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" stroke-linejoin="miter" filter="url(#soft-shadow)"/>
+            <polygon points="${points}" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" stroke-linejoin="miter"${filterAttr}/>
         </g>
         `;
     },
@@ -440,9 +480,10 @@ const SVG = {
         const fillColor = options.fill || '#ffffff';
         const textColor = options.textColor || '#0f172a';
         const nodeIdAttr = options.nodeId ? ` data-node-id="${options.nodeId}"` : '';
+        const filterAttr = options.shadow ? ' filter="url(#soft-shadow)"' : '';
         return `
         <g class="diagram-node connector-node"${nodeIdAttr}>
-            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8" filter="url(#soft-shadow)"/>
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.8"${filterAttr}/>
             <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
                 fill="${textColor}" font-family="${FONT_STACK}" font-size="12.5" font-weight="700">${label}</text>
         </g>
@@ -450,16 +491,32 @@ const SVG = {
     },
 
     // Straight line
-    line(x1, y1, x2, y2, hasArrow = false, markerType = 'arrow-flow') {
-        const marker = hasArrow ? `marker-end="url(#${markerType})"` : '';
-        return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1e293b" stroke-width="1.6" ${marker}/>`;
+    line(x1, y1, x2, y2, hasArrow = false, markerType = 'arrow-flow', options = {}) {
+        const opts = (typeof markerType === 'object' && markerType !== null) ? markerType : options;
+        const resolvedMarker = (typeof markerType === 'string') ? markerType : (opts.markerEnd || 'arrow-flow');
+        const stroke = opts.stroke || '#1e293b';
+        const strokeWidth = opts.strokeWidth || 1.6;
+        const markerEndId = opts.markerEnd || (hasArrow ? resolvedMarker : null);
+        const markerEnd = markerEndId ? ` marker-end="url(#${markerEndId})"` : '';
+        const markerStart = opts.markerStart ? ` marker-start="url(#${opts.markerStart})"` : '';
+        const dash = opts.dashArray ? ` stroke-dasharray="${opts.dashArray}"` : '';
+        const cls = opts.cssClass ? ` class="${opts.cssClass}"` : '';
+        return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${cls}${markerStart}${markerEnd}/>`;
     },
 
     // Orthogonal polyline
-    polyline(points, hasArrow = false, markerType = 'arrow-flow') {
+    polyline(points, hasArrow = false, markerType = 'arrow-flow', options = {}) {
+        const opts = (typeof markerType === 'object' && markerType !== null) ? markerType : options;
+        const resolvedMarker = (typeof markerType === 'string') ? markerType : (opts.markerEnd || 'arrow-flow');
         const ptsStr = points.map(p => `${p[0]},${p[1]}`).join(' ');
-        const marker = hasArrow ? `marker-end="url(#${markerType})"` : '';
-        return `<polyline points="${ptsStr}" fill="none" stroke="#1e293b" stroke-width="1.6" stroke-linejoin="miter" ${marker}/>`;
+        const stroke = opts.stroke || '#1e293b';
+        const strokeWidth = opts.strokeWidth || 1.6;
+        const markerEndId = opts.markerEnd || (hasArrow ? resolvedMarker : null);
+        const markerEnd = markerEndId ? ` marker-end="url(#${markerEndId})"` : '';
+        const markerStart = opts.markerStart ? ` marker-start="url(#${opts.markerStart})"` : '';
+        const dash = opts.dashArray ? ` stroke-dasharray="${opts.dashArray}"` : '';
+        const cls = opts.cssClass ? ` class="${opts.cssClass}"` : '';
+        return `<polyline points="${ptsStr}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="miter"${dash}${cls}${markerStart}${markerEnd}/>`;
     },
 
     // Text label (supports single-line and multiline arrays or \n)
@@ -474,7 +531,7 @@ const SVG = {
         if (lines.length === 1) {
             return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="central"
                 fill="${color}" font-family="${family}"
-                font-size="${size}" font-weight="${weight}" user-select="none">${this.escapeXml(lines[0])}</text>`;
+                font-size="${size}" font-weight="${weight}" style="user-select: none;">${this.escapeXml(lines[0])}</text>`;
         }
 
         const lineHeight = size * 1.35;
@@ -483,9 +540,9 @@ const SVG = {
             `<tspan x="${x}" y="${startY + i * lineHeight}" dominant-baseline="central">${this.escapeXml(l)}</tspan>`
         ).join('');
 
-        return `<text text-anchor="${anchor}" dominant-baseline="central" xml:space="preserve"
+        return `<text x="${x}" y="${startY}" text-anchor="${anchor}" dominant-baseline="central" xml:space="preserve"
             fill="${color}" font-family="${family}"
-            font-size="${size}" font-weight="${weight}" user-select="none">${tspans}</text>`;
+            font-size="${size}" font-weight="${weight}" style="user-select: none;">${tspans}</text>`;
     },
 
     escapeXml(str) {
@@ -532,12 +589,12 @@ class BoundingBox {
         const size = options.size || 13;
         const lines = Array.isArray(text) ? text : String(text || '').split('\n');
         const maxLen = Math.max(...lines.map(l => (l ? String(l).length : 0)), 0);
-        const len = maxLen * (size * 0.7);
+        const len = maxLen * (size * 0.72);
         const anchor = options.anchor || 'middle';
         let left = x;
         if (anchor === 'middle') left = x - len / 2;
         else if (anchor === 'end') left = x - len;
-        const totalHeight = Math.max(size * 1.5, lines.length * (size * 1.3));
+        const totalHeight = Math.max(size * 1.5, lines.length * (size * 1.35));
         this.addPoint(left, y - totalHeight / 2);
         this.addPoint(left + len, y + totalHeight / 2);
     }
@@ -554,5 +611,5 @@ class BoundingBox {
     }
 }
 
-export { SVG, BoundingBox };
+export { SVG, BoundingBox, FONT_STACK, MONO_FONT_STACK };
 export default SVG;
