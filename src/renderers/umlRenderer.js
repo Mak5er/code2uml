@@ -46,16 +46,16 @@ class UmlRenderer {
     return txt;
   }
 
-  getConditionText(cond) {
+  getConditionText(cond, isPreprocessor = false) {
     if (!cond) return "";
-    if (this.options.expressionMode === "math") {
+    if (!isPreprocessor && this.options.expressionMode === "math") {
       return toMathExpression(cond);
     }
     return cond;
   }
 
-  formatGuard(condText, maxChars = 50) {
-    let raw = this.getConditionText(condText);
+  formatGuard(condText, maxChars = 50, isPreprocessor = false) {
+    let raw = this.getConditionText(condText, isPreprocessor);
     if (!raw) return "[ ]";
     if (typeof raw === "string") {
       raw = raw.trim();
@@ -123,7 +123,7 @@ class UmlRenderer {
     return null;
   }
 
-  calcActionDimensions(node, isIO = false, maxChars = 40) {
+  calcActionDimensions(node, isIO = false, maxChars = 40, isPredefined = false) {
     if (typeof node === "object" && node !== null) {
       if (
         this.options.expressionMode === "math" &&
@@ -133,7 +133,7 @@ class UmlRenderer {
         if (frac) {
           const charW = 8.2;
           const sep = (frac.target === 'return' || /[-+*/]?=$/.test(frac.target)) ? ' ' : ' = ';
-          const formattedTarget = frac.target ? frac.target.replace(/\*/g, '·') : '';
+          const formattedTarget = frac.target || '';
           const leftPart = formattedTarget ? `${formattedTarget}${sep}${frac.prefix}` : frac.prefix;
           const leftW = leftPart ? leftPart.length * charW : 0;
           const rightW = frac.suffix ? frac.suffix.length * charW : 0;
@@ -141,11 +141,12 @@ class UmlRenderer {
           const denW = frac.denText.length * 8.0;
           const barW = Math.max(numW, denW) + 16;
           const totalW = leftW + (leftW > 0 ? 6 : 0) + barW + (rightW > 0 ? 6 : 0) + rightW;
+          const extraInsetPad = isPredefined ? 30 : 0;
           return {
             isFraction: true,
             frac,
             lines: [],
-            w: Math.max(isIO ? 100 : 124, Math.ceil(totalW + 36)),
+            w: Math.max(isIO ? 100 : 124, Math.ceil(totalW + 36 + extraInsetPad)),
             h: 58,
           };
         }
@@ -154,7 +155,8 @@ class UmlRenderer {
     const text = this.getNodeText(node);
     const lines = SVG.splitText(text, maxChars);
     const maxL = Math.max(...lines.map((l) => l.length), 0);
-    const w = Math.max(isIO ? 100 : 120, maxL * 8.5 + 28);
+    const hPad = isPredefined ? 54 : 30;
+    const w = Math.max(isIO ? 100 : 120, Math.ceil(maxL * 8.5 + hPad));
     const h = Math.max(34, lines.length * 18 + 14);
     return { isFraction: false, lines, w, h };
   }
@@ -195,12 +197,13 @@ class UmlRenderer {
     }
 
     const isIO = type === "input" || type === "output";
-    const dim = this.calcActionDimensions(node, isIO);
     const isPredefined = Boolean(
       node &&
+      !isIO &&
       (node.isPredefined || node.isFunctionCall) &&
       this.options.functionCallStyle !== "process"
     );
+    const dim = this.calcActionDimensions(node, isIO, 40, isPredefined);
     return {
       w: dim.w,
       h: dim.h,
@@ -242,7 +245,7 @@ class UmlRenderer {
   }
 
   layoutSeq(items) {
-    const valid = items.filter(Boolean);
+    const valid = items.filter((item) => item && (item.w > 0 || item.h > 0));
     if (!valid.length) return { w: 0, h: 0, cx: 0, render: () => {} };
     const gap = this.options.nodeGap;
     const cx = Math.max(...valid.map((item) => item.cx));
@@ -294,7 +297,7 @@ class UmlRenderer {
         layout: elseLayout,
       },
       {
-        label: this.formatGuard(condText),
+        label: this.formatGuard(condText, 50, Boolean(node.isPreprocessor)),
         layout: thenLayout,
       },
     ];
@@ -998,11 +1001,12 @@ class UmlRenderer {
     const svgContent = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}" width="${vb.width}" height="${vb.height}">
             ${SVG.createDefs()}
+            ${SVG.bgRect(vb)}
             <g id="uml-layer">
                 ${this.elements.join("\n")}
             </g>
         </svg>
-    `;
+    `.trim();
 
     return {
       svg: svgContent,

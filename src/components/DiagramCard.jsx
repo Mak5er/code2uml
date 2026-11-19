@@ -85,6 +85,7 @@ export default function DiagramCard({
                     <button
                         className={`btn-card-action btn-card-copy ${copied ? 'copied' : ''}`}
                         onClick={handleCopy}
+                        disabled={!svgContent}
                         title={`Скопіювати зображення (${title}) у буфер обміну для Word / Docs (Ctrl+V)`}
                     >
                         {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
@@ -93,6 +94,7 @@ export default function DiagramCard({
                     <button
                         className="btn-card-action"
                         onClick={handleSvgDownload}
+                        disabled={!svgContent}
                         title={`Завантажити SVG (${title})`}
                     >
                         SVG
@@ -100,6 +102,7 @@ export default function DiagramCard({
                     <button
                         className="btn-card-action"
                         onClick={handlePngDownload}
+                        disabled={!svgContent}
                         title={`Завантажити PNG (${title})`}
                     >
                         PNG

@@ -242,26 +242,28 @@ export default function ViewerPanel({
           <button
             className={`tab-btn ${isAll ? "active" : ""}`}
             onClick={() => onTabChange("all")}
-            title="Показати блок-схему та UML діаграму поруч"
+            title="Показати всі діаграми поруч"
           >
             Всі
           </button>
           <button
             className={`tab-btn ${activeTab === "flowchart" ? "active" : ""}`}
             onClick={() => onTabChange("flowchart")}
+            title="Блок-схема алгоритму (ДСТУ ГОСТ 19.701-90)"
           >
             📐 Блок-схема
           </button>
           <button
             className={`tab-btn ${activeTab === "uml" ? "active" : ""}`}
             onClick={() => onTabChange("uml")}
+            title="UML Діаграма діяльності"
           >
             ⚡ UML Activity
           </button>
           <button
             className={`tab-btn ${activeTab === "structure-chart" ? "active" : ""}`}
             onClick={() => onTabChange("structure-chart")}
-            title="Структурна схема взаємозв'язку функцій та рекурсії (ДСТУ / Лаб. 5)"
+            title="Структурна схема програми (ДСТУ ГОСТ 19.701-90)"
           >
             🏗️ Структурна схема
           </button>
@@ -314,14 +316,14 @@ export default function ViewerPanel({
           {(isAll || activeTab === "flowchart") && (
             <DiagramCard
               id="cardFlowchart"
-              title="Блок-схема алгоритму"
+              title="Блок-схема (ДСТУ ГОСТ 19.701-90)"
               badge={isFcCustomized ? "Змінено вручну" : undefined}
               svgContent={flowchartSvg}
               emptyMessage="Введіть C++ код для генерації блок-схеми"
               onDownloadSvg={onDownloadFcSvg}
               onDownloadPng={onDownloadFcPng}
               innerRef={flowchartRef}
-              onEdit={() => onEditDiagram && onEditDiagram("flowchart")}
+              onEdit={flowchartSvg ? () => onEditDiagram && onEditDiagram("flowchart") : undefined}
               onToast={onToast}
             />
           )}
@@ -329,25 +331,25 @@ export default function ViewerPanel({
           {(isAll || activeTab === "uml") && (
             <DiagramCard
               id="cardUml"
-              title="UML-activity діаграма"
+              title="UML Діаграма діяльності"
               badge={isUmlCustomized ? "Змінено вручну" : undefined}
               svgContent={umlSvg}
               emptyMessage="Введіть C++ код для генерації UML діаграми"
               onDownloadSvg={onDownloadUmlSvg}
               onDownloadPng={onDownloadUmlPng}
               innerRef={umlRef}
-              onEdit={() => onEditDiagram && onEditDiagram("uml")}
+              onEdit={umlSvg ? () => onEditDiagram && onEditDiagram("uml") : undefined}
               onToast={onToast}
             />
           )}
 
-          {activeTab === "structure-chart" && (
+          {(activeTab === "structure-chart" || (isAll && Boolean(structureChartSvg))) && (
             <DiagramCard
               id="cardStructureChart"
-              title="Структурна схема програми"
+              title="Структурна схема (ДСТУ ГОСТ 19.701-90)"
               badge={isScCustomized ? "Змінено вручну" : undefined}
               svgContent={structureChartSvg}
-              emptyMessage="Введіть C++ код з 2+ функціями або рекурсією для генерації структурної схеми (Лаб. №5)"
+              emptyMessage="Введіть C++ код для генерації структурної схеми (ДСТУ ГОСТ 19.701-90)"
               onDownloadSvg={onDownloadScSvg}
               onDownloadPng={onDownloadScPng}
               innerRef={structureChartRef}
